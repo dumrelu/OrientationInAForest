@@ -27,6 +27,10 @@ namespace ppc
 		//! Returns the map data.
 		const Rows& data() const { return m_data; }
 
+		//! Returns the given row.
+		Row& operator[](size_type idx) { return m_data[idx]; }
+		const Row& operator[](size_type idx) const { return m_data[idx]; }
+
 	private:
 		friend std::istream& operator>>(std::istream&, Map&);
 
