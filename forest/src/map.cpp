@@ -11,6 +11,11 @@ namespace ppc
 	{
 		m_data = Rows(height, Row(width, ZoneType::UNKNOWN));
 	}
+	
+	Map::Map(Rows data)
+		: m_data(std::move(data))
+	{
+	}
 
 	Map::size_type Map::height() const
 	{

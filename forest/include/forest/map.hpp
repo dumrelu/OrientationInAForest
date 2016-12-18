@@ -3,8 +3,10 @@
 #include <iosfwd>
 #include <vector>
 
+
 namespace ppc
 {
+	//! Satelite map.
 	class Map
 	{
 	public:
@@ -13,10 +15,11 @@ namespace ppc
 		using Rows = std::vector<Row>;
 
 		Map(size_type height = 0, size_type width = 0);
+		Map(Rows data);
 		Map(const Map& map) = default;
-		Map(Map&& map) = default;
+		Map(Map&& map) noexcept = default;
 		Map& operator=(const Map&) = default;
-		Map& operator=(Map&&) = default;
+		Map& operator=(Map&&) noexcept = default;
 
 		//! Returns the height of the map.
 		size_type height() const;
