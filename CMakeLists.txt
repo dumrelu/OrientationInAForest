@@ -41,7 +41,7 @@ endif()
 
 
 # Subdirectories
-
+add_subdirectory(forest)
 
 
 # Main executable
@@ -50,8 +50,10 @@ set(ORIENTATION_SOURCE_FILES main.cpp)
 
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${MPI_CXX_INCLUDE_PATH})
+include_directories(${PROJECT_SOURCE_DIR}/forest/include)
 
 add_executable(orientation ${ORIENTATION_HEADER_FILES} ${ORIENTATION_SOURCE_FILES})
 
 target_link_libraries(orientation ${Boost_LIBRARIES})
 target_link_libraries(orientation ${MPI_CXX_LIBRARIES})
+target_link_libraries(orientation forest_lib)
