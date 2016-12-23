@@ -1,55 +1,90 @@
 #include "zone.hpp"
 
+#include <cassert>
 #include <iosfwd>
 #include <vector>
 
 
 namespace ppc
 {
-	//! Satelite map.
+	//! Unsigned integral type used as the map index.
+	using size_type = std::size_t;
+
+	//! Class which represents a satelite map.
 	class Map
 	{
 	public:
-		using size_type = std::size_t;
-		using Row = std::vector<ZoneType>;
-		using Rows = std::vector<Row>;
+		//! Facilites acces to a column from a given row.
+		template <typename M>
+		struct AccessProxy
+		{
+			AccessProxy(M map, size_type row)
+				: m_map{ map }, m_row{ row }
+			{
+				assert(m_row < m_map.m_height);
+			}
 
-		Map(size_type height = 0, size_type width = 0);
-		Map(Rows data);
+			decltype(auto) operator[](const size_type column)
+			{
+				assert(column < m_map.m_width);
+				return m_map.m_zones[m_row * m_map.m_width + column];
+			}
+
+		private:
+			M m_map;
+			size_type m_row;
+		};
+
+		using Zones = std::vector<ZoneType>;
+
+		Map(size_type height = 0, size_type width = 0, Zones zones = {});
 		Map(const Map& map) = default;
 		Map(Map&& map) noexcept = default;
 		Map& operator=(const Map&) = default;
 		Map& operator=(Map&&) noexcept = default;
 
 		//! Returns the height of the map.
-		size_type height() const;
+		const size_type height() const { return m_height; }
 
 		//! Returns the width of the map.
-		size_type width() const;
+		const size_type width() const { return m_width; }
 
-		//! Returns the map data.
-		const Rows& data() const { return m_data; }
+		//! Returns the vector containing all the zones in the map.
+		const Zones& data() const { return m_zones; }
 
-		//! Returns the given row.
-		Row& operator[](size_type idx) { return m_data[idx]; }
-		const Row& operator[](size_type idx) const { return m_data[idx]; }
+		//! 2D access operator.
+		auto operator[](const size_type row) { return AccessProxy<decltype(*this)>(*this, row); }
+		auto operator[](const size_type row) const { return AccessProxy<decltype(*this)>(*this, row); }
 
 	private:
-		friend std::istream& operator>>(std::istream&, Map&);
+		friend std::istream& operator >> (std::istream& in, Map& map);
 
-		Rows m_data;
+		size_type m_height;
+		size_type m_width;
+		Zones m_zones;
 	};
 
-	//! Read the map from an input stream.
+	//! Reads a map from the given input stream.
 	/*!
-		Reading is done by first reading 2 values of type Map::size_type, which indicate
-	the height and the width of the map, followed by reading width * height number of zones.
+		It starts with reading two integers, the height and the width of the map, 
+	followed by reading height * width zones.
 	*/
 	std::istream& operator>>(std::istream& in, Map& map);
 
-	//! Writes the map to the given output stream.
+	//! Writes a map to the given output stream.
 	/*!
-		See operator>> for more details.
+		The written map has the following format:
+		"
+		height width
+		zone00 zone01 ... zone0m
+		zone10 zone11 ... zone1m
+		.
+		.
+		.
+		zonen0 zonen1 ... zonenm
+		"
+
+		Where m = width - 1 and n = height - 1.
 	*/
 	std::ostream& operator<<(std::ostream& out, const Map& map);
 }

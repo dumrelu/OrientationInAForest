@@ -1,51 +1,26 @@
 #include "map.hpp"
 
-#include <cassert>
 #include <istream>
 #include <ostream>
-#include <type_traits>
 
 namespace ppc
 {
-	Map::Map(size_type height, size_type width)
+	Map::Map(size_type height, size_type width, Zones zones)
+		: m_height{ height }, m_width{ width }, m_zones{ std::move(zones) }
 	{
-		m_data = Rows(height, Row(width, ZoneType::UNKNOWN));
-	}
-	
-	Map::Map(Rows data)
-		: m_data(std::move(data))
-	{
-	}
-
-	Map::size_type Map::height() const
-	{
-		return m_data.size();
-	}
-
-	Map::size_type Map::width() const
-	{
-		if (m_data.empty())
-		{
-			return 0;
-		}
-		return m_data.size();
+		m_zones.resize(m_width * m_height, UNKNOWN);
 	}
 
 	std::istream& operator>>(std::istream& in, Map& map)
 	{
-		Map::size_type height{};
-		Map::size_type width{};
+		size_type height;
+		size_type width;
 
-		in >> height;
-		in >> width;
-
-		map = Map{ height, width };
-		for (auto& row : map.m_data)
+		in >> height >> width;
+		map = { height, width };
+		for (auto& zone : map.m_zones)
 		{
-			for (auto& zone : row)
-			{
-				in >> zone;
-			}
+			in >> zone;
 		}
 
 		return in;
@@ -53,17 +28,16 @@ namespace ppc
 
 	std::ostream& operator<<(std::ostream& out, const Map& map)
 	{
-		const auto height = map.height();
-		const auto width = map.width();
+		out << map.height() << " " << map.width() << std::endl;
 
-		out << height << std::endl << width << std::endl;
-		for (const auto& row : map.data())
+		size_type idx{ 0 };
+		for (const auto zone : map.data())
 		{
-			for (auto zone : row)
+			out << zone << " ";
+			if (++idx % map.width() == 0)
 			{
-				out << zone;
+				out << std::endl;
 			}
-			out << std::endl;
 		}
 
 		return out;

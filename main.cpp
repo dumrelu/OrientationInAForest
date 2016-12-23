@@ -4,6 +4,10 @@
 
 #include "forest/map.hpp"
 
+struct Test
+{
+};
+
 int main()
 {
 	const std::string testMap{
@@ -15,11 +19,15 @@ int main()
 		"CCCCC\n"
 	};
 	std::istringstream iss{ testMap };
-
+	
 	ppc::Map map;
+
 	iss >> map;
 	std::cout << map;
+
 	std::cin.get();
+
+	
 
 	/*mpi::environment environment;
 	mpi::communicator world;
