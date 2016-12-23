@@ -4,7 +4,7 @@
 namespace ppc
 {
 	//! Indicates the type of a single square on the map/area
-	enum class ZoneType : std::uint8_t
+	enum ZoneType : std::uint8_t
 	{
 		OPEN = 0b0001, 
 		ROAD = 0b0010, 
