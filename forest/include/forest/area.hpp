@@ -1,51 +1,32 @@
+#pragma once
+
 #include "map.hpp"
 
+#include <boost/optional.hpp>
 #include <boost/serialization/serialization.hpp>
+#include <boost/serialization/vector.hpp>
 
 namespace ppc
 {
 	struct Area;
+	struct AreaZones;
 
-	//! Extracts an area from the given map.
-	/*!
-		The first argument is the map from which to extract the area and 
-	the second parameter considers {x, y, width, height} as input and puts
-	the result in {data}.
-		Returns true if area is valid, false otherwise.
-	*/
-	const bool extract_area(const Map& map, Area& area);
+	//! Extrancs the zones from the map in the given area.
+	boost::optional<AreaZones> extract_zones(const Map& map, const Area& area);
 
-	//! Creates a map from the given area.
-	Map create_map(Area area);
+	//! Creates a map from the given area zones.
+	Map create_map(AreaZones areaZones);
 
-	//! Translates from global coordinates to local coordinates.
-	Area to_local(Area area, Map::size_type x, Map::size_type y);
+	//! Updates the given area of the map.
+	const bool update_map(Map& map, const AreaZones& zones);
 
-	//! Translate from local coordinates to global coordinates.
-	Area to_global(Area area, Map::size_type x, Map::size_type y);
-
-
-	//! Updates the given area on the map.
-	/*!
-		Returns true if the area is valid, false otherwise.
-		Note: Unknown zones in the area will be left unmodified.
-	*/
-	const bool update_area(Map& map, const Area& area);
-
-	//! Defines an area of a map.
-	/*!
-		Used to send/recv parts of a map.
-	*/
+	//! Represents a rectangular area of a map.
 	struct Area
 	{
-		using size_type = Map::size_type;
-		using Rows = Map::Rows;
-
 		size_type x;
 		size_type y;
-		size_type width;
 		size_type height;
-		Rows data;
+		size_type width;
 
 	private:
 		friend class boost::serialization::access;
@@ -57,7 +38,23 @@ namespace ppc
 			ar & y;
 			ar & width;
 			ar & height;
-			ar & data;
+		}
+	};
+
+	//! Stores the zones in the given area.
+	struct AreaZones
+	{
+		Area area;
+		Map::Zones zones;
+
+	private:
+		friend class boost::serialization::access;
+
+		template <typename Archive>
+		void serialize(Archive& ar, const unsigned int /*version*/)
+		{
+			ar & area;
+			ar & zones;
 		}
 	};
 }

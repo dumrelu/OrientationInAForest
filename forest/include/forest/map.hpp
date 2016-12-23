@@ -1,3 +1,5 @@
+#pragma once
+
 #include "zone.hpp"
 
 #include <cassert>
