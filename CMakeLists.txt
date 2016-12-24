@@ -46,7 +46,7 @@ add_subdirectory(forest)
 
 # Main executable
 set(ORIENTATION_HEADER_FILES)
-set(ORIENTATION_SOURCE_FILES main.cpp)
+set(ORIENTATION_SOURCE_FILES src/main.cpp)
 
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${MPI_CXX_INCLUDE_PATH})
