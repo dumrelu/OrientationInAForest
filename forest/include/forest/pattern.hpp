@@ -11,7 +11,6 @@
 namespace ppc
 {
 	struct Pattern;
-	struct Location;
 
 	//! Searches for the given pattern in the given map.
 	/*!
@@ -23,20 +22,13 @@ namespace ppc
 	UNKNOWN zones in the map will never match.
 	*/
 	template <typename MapConcept>
-	std::vector<Location> match_pattern(const MapConcept& map, const Pattern& pattern, boost::optional<Area> searchArea = {});
-
-	//! Represents a location on the map where the pattern matched.
-	struct Location
-	{
-		size_type x;
-		size_type y;
-	};
+	std::vector<index_pair> match_pattern(const MapConcept& map, const Pattern& pattern, boost::optional<Area> searchArea = {});
 
 	//! Represents a rectangular pattern of zones.
 	struct Pattern
 	{
-		size_type height;
-		size_type width;
+		index_type height;
+		index_type width;
 		Map::Zones zones;
 
 	private:
@@ -53,24 +45,24 @@ namespace ppc
 
 	namespace detail
 	{
-		const bool is_pattern_inside_area(const Area& area, const size_type x, const size_type y, const Pattern& pattern)
+		const bool is_pattern_inside_area(const Area& area, const index_type x, const index_type y, const Pattern& pattern)
 		{
 			return x >= area.x && x + pattern.width <= area.x + area.width
 				&& y >= area.y && y + pattern.height <= area.y + area.height;
 		}
 
 		template <typename MapConcept>
-		const bool matches_pattern(const MapConcept& map, const Area& area, size_type x, size_type y, const Pattern& pattern)
+		const bool matches_pattern(const MapConcept& map, const Area& area, index_type x, index_type y, const Pattern& pattern)
 		{
 			if (!is_pattern_inside_area(area, x, y, pattern))
 			{
 				return false;
 			}
 
-			size_type patternIdx = 0;
-			for (size_type currentY = y; currentY < y + pattern.height; ++currentY)
+			index_type patternIdx = 0;
+			for (index_type currentY = y; currentY < y + pattern.height; ++currentY)
 			{
-				for (size_type currentX = x; currentX < x + pattern.width; ++currentX)
+				for (index_type currentX = x; currentX < x + pattern.width; ++currentX)
 				{
 					const auto mapZone = map[currentY][currentX];
 					if (mapZone == UNKNOWN)
@@ -90,7 +82,7 @@ namespace ppc
 	}
 
 	template <typename MapConcept>
-	std::vector<Location> match_pattern(const MapConcept& map, const Pattern& pattern, boost::optional<Area> searchArea)
+	std::vector<index_pair> match_pattern(const MapConcept& map, const Pattern& pattern, boost::optional<Area> searchArea)
 	{
 		Area area{};
 		if (searchArea)
@@ -102,10 +94,10 @@ namespace ppc
 			area = { 0, 0, map.height(), map.width() };
 		}
 
-		std::vector<Location> matches;
-		for (size_type y = area.y; y < area.y + area.height; ++y)	//TODO: possible optimization: if pattern doesn't fit, skip to the next row
+		std::vector<index_pair> matches;
+		for (index_type y = area.y; y < area.y + area.height; ++y)	//TODO: possible optimization: if pattern doesn't fit, skip to the next row
 		{
-			for (size_type x = area.x; x < area.x + area.width; ++x)
+			for (index_type x = area.x; x < area.x + area.width; ++x)
 			{
 				if (detail::matches_pattern(map, area, x, y, pattern))
 				{

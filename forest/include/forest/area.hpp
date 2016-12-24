@@ -23,10 +23,10 @@ namespace ppc
 	//! Represents a rectangular area of a map.
 	struct Area
 	{
-		size_type x;
-		size_type y;
-		size_type height;
-		size_type width;
+		index_type x;
+		index_type y;
+		index_type height;
+		index_type width;
 
 	private:
 		friend class boost::serialization::access;

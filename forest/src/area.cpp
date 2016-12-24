@@ -20,9 +20,9 @@ namespace ppc
 
 		AreaZones az{ area, {} };
 		az.zones.reserve(area.height * area.width);
-		for (size_type y = area.y; y < area.y + area.height; ++y)
+		for (index_type y = area.y; y < area.y + area.height; ++y)
 		{
-			for (size_type x = area.x; x < area.x + area.width; ++x)
+			for (index_type x = area.x; x < area.x + area.width; ++x)
 			{
 				az.zones.push_back(map[y][x]);
 			}
@@ -46,10 +46,10 @@ namespace ppc
 
 		const auto& area = areaZones.area;
 		const auto& zones = areaZones.zones;
-		size_type idx = 0;
-		for (size_type y = area.y; y < area.y + area.height; ++y)
+		index_type idx = 0;
+		for (index_type y = area.y; y < area.y + area.height; ++y)
 		{
-			for (size_type x = area.x; x < area.x + area.width; ++x)
+			for (index_type x = area.x; x < area.x + area.width; ++x)
 			{
 				map[y][x] = zones[idx++];
 			}
