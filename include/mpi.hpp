@@ -5,6 +5,11 @@
 #include <vector>
 
 #include <boost/mpi.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/array.hpp>
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
 
 namespace ppc
 {
@@ -20,7 +25,7 @@ namespace ppc
 	//! Indicates direction.
 	enum Direction : std::uint8_t
 	{
-		NORTH, 
+		NORTH = 0, 
 		SOUTH, 
 		EAST, 
 		WEST

@@ -4,7 +4,9 @@
 
 #include "forest/map.hpp"
 
+#include <array>
 #include <string>
+#include <tuple>
 
 namespace ppc
 {
@@ -17,12 +19,20 @@ namespace ppc
 	class Master
 	{
 	public:
+		//! (initial_position, starting_position, path_to_bottom).
+		using result = std::tuple<index_pair, index_pair, path>;
+
 		Master(mpi::communicator workers, mpi::communicator outside);
 
 		//! 
-		void run(const std::string& filename);
+		result run(const Map& map);
 
 	private:
+
+		// Interacting with the outside
+		std::array<ZoneType, 4> query();
+		void move(Direction direction);
+
 		mpi::communicator m_workers;
 		mpi::communicator m_outside;
 	};

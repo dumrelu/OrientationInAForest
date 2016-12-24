@@ -6,6 +6,8 @@
 #include "forest/area.hpp"
 #include "forest/pattern.hpp"
 
+#include "master.hpp"
+
 
 int main()
 {
@@ -19,7 +21,7 @@ int main()
 	};
 	std::istringstream iss{ testMap };
 	
-	ppc::Map map;
+	/*ppc::Map map;
 
 	iss >> map;
 	std::cout << "Original map: " << std::endl << map;
@@ -40,13 +42,28 @@ int main()
 	auto matches = ppc::match_pattern(map, pattern);
 
 
-	std::cin.get();
+	BOOST_LOG_TRIVIAL(trace) << "Hello World!";
+	std::cin.get();*/
 
 	
 
-	/*mpi::environment environment;
-	mpi::communicator world;
+	ppc::mpi::environment environment;
+	ppc::mpi::communicator world;
 
-	std::cout << world.rank() << " / " << world.size() << std::endl;
-	std::cin.get();*/
+	if (world.rank() == 0)
+	{
+		auto master = ppc::Master{ world, world };
+		ppc::Map map;
+		iss >> map;
+
+		master.run(map);
+	}
+	else
+	{
+		ppc::AreaZones zone;
+		ppc::mpi::scatter(world, zone, 0);
+
+		auto tempMap = ppc::create_map(zone);
+		BOOST_LOG_TRIVIAL(debug) << "Worker #" << world.rank() << std::endl << tempMap;
+	}
 }
