@@ -4,6 +4,7 @@
 
 #include "forest/map.hpp"
 #include "forest/area.hpp"
+#include "forest/pattern.hpp"
 
 
 int main()
@@ -34,6 +35,10 @@ int main()
 	ppc::update_map(map, partialZones);
 
 	std::cout << "Updated map: " << std::endl << map;
+
+	ppc::Pattern pattern{ 3, 3, { ppc::UNKNOWN, ppc::ROAD, ppc::UNKNOWN, ppc::UNKNOWN, ppc::ROAD, ppc::UNKNOWN, ppc::UNKNOWN, ppc::ROAD, ppc::UNKNOWN } };
+	auto matches = ppc::match_pattern(map, pattern);
+
 
 	std::cin.get();
 

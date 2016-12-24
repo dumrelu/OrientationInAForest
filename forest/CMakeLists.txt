@@ -1,4 +1,4 @@
-set(FOREST_LIB_HEADER_FILES include/forest/zone.hpp include/forest/map.hpp include/forest/area.hpp)
+set(FOREST_LIB_HEADER_FILES include/forest/zone.hpp include/forest/map.hpp include/forest/area.hpp include/forest/pattern.hpp)
 set(FOREST_LIB_SOURCE_FILES src/zone.cpp src/map.cpp src/area.cpp)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/forest)
