@@ -18,6 +18,23 @@
 
 namespace ppc
 {
+	namespace tags
+	{
+		//! Common tags.
+		enum Common
+		{
+			OK	 = 0b0000, 
+			STOP = 0b0001
+		};
+
+		//! Tags used between the orientee and the masters.
+		enum OrienteeTags
+		{
+			QUERY = 0b0010,
+			MOVE  = 0b0100
+		};
+	}
+
 	//! Namespace alias for boost::mpi.
 	namespace mpi = boost::mpi;
 

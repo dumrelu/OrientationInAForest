@@ -15,6 +15,12 @@ std::string ppc::g_worldID;
 
 int main()
 {
+	namespace logging = boost::log;
+	logging::core::get()->set_filter
+	(
+		logging::trivial::severity == logging::trivial::trace
+	);
+
 	const std::string testMap{
 		"6 7\n"
 		"CCCCCCC\n"
@@ -38,16 +44,17 @@ int main()
 	PPC_LOG(info) << "Map read(height = " << map.height() << ", width = " << map.width() << ")";
 
 	auto workers = world.split(world.rank() != 1);
-	auto orientee = world.split(world.rank() <= 1);
+	auto orienteeComm = world.split(world.rank() <= 1);
 
 	if (world.rank() == 0)
 	{
-		ppc::LocationFinderMaster locationMaster{ workers, orientee };
+		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
 		auto location = locationMaster.run(map);
 	}
 	else if (world.rank() == 1)
 	{
-
+		ppc::Orientee orientee{ orienteeComm };
+		orientee.run(map);
 	}
 	else
 	{
