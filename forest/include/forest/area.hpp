@@ -2,23 +2,14 @@
 
 #include "map.hpp"
 
+#include <iosfwd>
+
 #include <boost/optional.hpp>
 #include <boost/serialization/serialization.hpp>
-#include <boost/serialization/vector.hpp>
 
 namespace ppc
 {
 	struct Area;
-	struct AreaZones;
-
-	//! Extrancs the zones from the map in the given area.
-	boost::optional<AreaZones> extract_zones(const Map& map, const Area& area);
-
-	//! Creates a map from the given area zones.
-	Map create_map(AreaZones areaZones);
-
-	//! Updates the given area of the map.
-	const bool update_map(Map& map, const AreaZones& zones);
 
 	//! Represents a rectangular area of a map.
 	struct Area
@@ -41,20 +32,6 @@ namespace ppc
 		}
 	};
 
-	//! Stores the zones in the given area.
-	struct AreaZones
-	{
-		Area area;
-		Map::Zones zones;
-
-	private:
-		friend class boost::serialization::access;
-
-		template <typename Archive>
-		void serialize(Archive& ar, const unsigned int /*version*/)
-		{
-			ar & area;
-			ar & zones;
-		}
-	};
+	//! Debug purpose output stream operator.
+	std::ostream& operator<<(std::ostream& out, const Area& area);
 }
