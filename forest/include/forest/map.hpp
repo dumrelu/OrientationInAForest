@@ -15,28 +15,7 @@ namespace ppc
 	class Map
 	{
 	public:
-		//! Facilites acces to a column from a given row.
-		template <typename M>
-		struct AccessProxy
-		{
-			AccessProxy(M map, index_type row)
-				: m_map{ map }, m_row{ row }
-			{
-				assert(m_row < m_map.m_height);
-			}
-
-			decltype(auto) operator[](const index_type column)
-			{
-				assert(column < m_map.m_width);
-				return m_map.m_zones[m_row * m_map.m_width + column];
-			}
-
-		private:
-			M m_map;
-			index_type m_row;
-		};
-
-		using Zones = std::vector<ZoneType>;
+		using Zones = std::vector<std::vector<ZoneType>>;
 
 		Map(index_type height = 0, index_type width = 0, Zones zones = {});
 		Map(const Map& map) = default;
@@ -54,8 +33,8 @@ namespace ppc
 		const Zones& data() const { return m_zones; }
 
 		//! 2D access operator.
-		auto operator[](const index_type row) { return AccessProxy<decltype(*this)>(*this, row); }
-		auto operator[](const index_type row) const { return AccessProxy<decltype(*this)>(*this, row); }
+		auto operator[](const index_type row) { return m_zones[row]; }
+		auto operator[](const index_type row) const { return m_zones[row]; }
 
 	private:
 		friend std::istream& operator >> (std::istream& in, Map& map);

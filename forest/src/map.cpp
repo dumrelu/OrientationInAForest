@@ -8,7 +8,7 @@ namespace ppc
 	Map::Map(index_type height, index_type width, Zones zones)
 		: m_height{ height }, m_width{ width }, m_zones{ std::move(zones) }
 	{
-		m_zones.resize(m_width * m_height, UNKNOWN);
+		m_zones.resize(m_height, { m_width, UNKNOWN });
 	}
 
 	std::istream& operator>>(std::istream& in, Map& map)
@@ -18,9 +18,12 @@ namespace ppc
 
 		in >> height >> width;
 		map = { height, width };
-		for (auto& zone : map.m_zones)
+		for (auto& row : map.m_zones)
 		{
-			in >> zone;
+			for (auto& zone : row)
+			{
+				in >> zone;
+			}
 		}
 
 		return in;
@@ -30,14 +33,13 @@ namespace ppc
 	{
 		out << map.height() << " " << map.width() << std::endl;
 
-		index_type idx{ 0 };
-		for (const auto zone : map.data())
+		for (const auto& row : map.data())
 		{
-			out << zone << " ";
-			if (++idx % map.width() == 0)
+			for (const auto zone : row)
 			{
-				out << std::endl;
+				out << zone << " ";
 			}
+			std::endl(out);
 		}
 
 		return out;
