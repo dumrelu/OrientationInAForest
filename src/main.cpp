@@ -12,12 +12,13 @@
 int main()
 {
 	const std::string testMap{
-		"5 5\n"
-		"COROC\n"
-		"CTRTC\n"
-		"COROC\n"
-		"COROC\n"
-		"CCCCC\n"
+		"6 7\n"
+		"CCCCCCC\n"
+		"CCOROCC\n"
+		"CCTRTCC\n"
+		"CCOROCC\n"
+		"CCOROCC\n"
+		"CCCCCCC\n"
 	};
 	std::istringstream iss{ testMap };
 	
@@ -50,20 +51,51 @@ int main()
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
 
+	BOOST_LOG_TRIVIAL(debug) << "Before split";
+	auto workers = world.split(world.rank() != 1);
+	auto outside = world.split(world.rank() <= 1);
+	BOOST_LOG_TRIVIAL(debug) << "After split";
+
 	if (world.rank() == 0)
 	{
-		auto master = ppc::Master{ world, world };
+		auto master = ppc::Master{ workers, outside };
+		//auto master = ppc::Master{ world, world };
 		ppc::Map map;
 		iss >> map;
 
+		BOOST_LOG_TRIVIAL(debug) << "Workers communicator: " << workers.rank() << "/" << workers.size();
+		BOOST_LOG_TRIVIAL(debug) << "Outside communicator: " << outside.rank() << "/" << outside.size();
+
 		master.run(map);
+	}
+	else if (world.rank() == 1)
+	{
+		ppc::Map map;
+		iss >> map;
+
+		auto position = ppc::index_pair{ 3, 3 };
+		auto orientation = ppc::LEFT;
+		auto runQuery = [&]()
+		{
+			std::array<ppc::ZoneType, 4> queryResult;
+			for (const auto dir : { ppc::UP, ppc::RIGHT, ppc::DOWN, ppc::LEFT })
+			{
+				const auto offset = ppc::get_offset(ppc::combine_directions(orientation, dir));
+				auto dirPos = position;
+				dirPos.first += offset.first;
+				dirPos.second += offset.second;
+
+				queryResult[dir] = map[dirPos.second][dirPos.first];
+			}
+			return queryResult;
+		};
 	}
 	else
 	{
 		ppc::AreaZones zone;
-		ppc::mpi::scatter(world, zone, 0);
+		ppc::mpi::scatter(workers, zone, 0);
 
 		auto tempMap = ppc::create_map(zone);
-		BOOST_LOG_TRIVIAL(debug) << "Worker #" << world.rank() << std::endl << tempMap;
+		BOOST_LOG_TRIVIAL(debug) << "Worker #" << workers.rank() << std::endl << tempMap;
 	}
 }

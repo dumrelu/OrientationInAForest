@@ -25,27 +25,40 @@ namespace ppc
 	//! Indicates direction.
 	enum Direction : std::uint8_t
 	{
-		NORTH = 0, 
-		SOUTH, 
-		EAST, 
-		WEST
+		UP = 0, 
+		RIGHT, 
+		DOWN, 
+		LEFT
 	};
+
+	//! Combines two direction.
+	/*!
+		The function returnes the resulting orientation of after first orientating to "firstDir" and then
+	reorientating, relative to "firstDir", to "secondDir".
+		For example, if a person turns right once and then turns backwards, the resulting orientation of that
+	person will be left.
+	*/
+	constexpr Direction combine_directions(const Direction firstDir, const Direction secondDir)
+	{
+		return static_cast<Direction>((firstDir + secondDir) % 4);
+	}
 
 	//! Converts a direction into an offset.
 	constexpr offset get_offset(const Direction direction)
 	{
 		switch (direction)
 		{
-		case NORTH:
+		case UP:
 			return { 0, -1 };
-		case SOUTH:
+		case DOWN:
 			return { 0, 1 };
-		case EAST:
-			return { 1, 0 };
-		case WEST:
+		case LEFT:
 			return { -1, 0 };
+		case RIGHT:
+			return { 1, 0 };
 		default:
 			return {};
 		}
 	}
 }
+
