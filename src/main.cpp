@@ -15,17 +15,24 @@ std::string ppc::g_worldID;
 
 int main()
 {
+	//http://www.boost.org/doc/libs/1_54_0/libs/log/doc/html/boost/log/add_console_lo_idp21543664.html
 	namespace logging = boost::log;
-	logging::core::get()->set_filter
+	namespace keywords = logging::keywords;
+	logging::add_console_log(std::cout,
+		keywords::format = "[%TimeStamp%]: %Message%",
+		keywords::auto_flush = true
+	);
+	logging::add_common_attributes();
+	/*logging::core::get()->set_filter
 	(
 		logging::trivial::severity == logging::trivial::trace
-	);
+	);*/
 
 	const std::string testMap{
 		"6 7\n"
 		"CCCCCCC\n"
 		"CCOROCC\n"
-		"CCTRTCC\n"
+		"CCORTCC\n"
 		"CCOROCC\n"
 		"CCOROCC\n"
 		"CCCCCCC\n"
@@ -36,7 +43,8 @@ int main()
 	ppc::mpi::communicator world;
 
 	ppc::g_worldID = "World#" + std::to_string(world.rank()) + ": ";
-	PPC_LOG(info) << "World initialized";
+	PPC_LOG(info) << "World initialized(" << world.size() << " processes)." << std::endl;
+	//assert(world.size() >= 4);
 
 	ppc::Map map;
 	PPC_LOG(info) << "Reading map...";
@@ -44,7 +52,12 @@ int main()
 	PPC_LOG(info) << "Map read(height = " << map.height() << ", width = " << map.width() << ")";
 
 	auto workers = world.split(world.rank() != 1);
+	PPC_LOG(info) << "Workers communicator initialized.";
+
 	auto orienteeComm = world.split(world.rank() <= 1);
+	PPC_LOG(info) << "Orientee communicator initialized.";
+
+	world.barrier();
 
 	if (world.rank() == 0)
 	{
@@ -61,4 +74,7 @@ int main()
 		ppc::LocationFinderWorker locationWorker{ workers };
 		auto location = locationWorker.run(map);
 	}
+
+	PPC_LOG(info) << "Shutting down..." << std::endl;
+	
 }

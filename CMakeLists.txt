@@ -25,7 +25,7 @@ set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
-find_package(Boost REQUIRED mpi serialization log system filesystem date_time thread)
+find_package(Boost REQUIRED mpi serialization log system filesystem date_time thread atomic log_setup chrono)
 if(NOT Boost_FOUND)
     message(FATAL_ERROR "Boost required")
 endif()

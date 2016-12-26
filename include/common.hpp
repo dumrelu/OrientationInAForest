@@ -6,6 +6,7 @@
 #include "forest/map.hpp"
 
 #include <array>
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,8 @@
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/log/utility/setup/console.hpp>
+#include <boost/log/utility/setup/common_attributes.hpp>
 
 namespace ppc
 {
@@ -23,15 +26,16 @@ namespace ppc
 		//! Common tags.
 		enum Common
 		{
-			OK	 = 0b0000, 
-			STOP = 0b0001
+			OK	  = 0b001, 
+			ERROR = 0b010, 
+			STOP  = 0b100
 		};
 
 		//! Tags used between the orientee and the masters.
 		enum OrienteeTags
 		{
-			QUERY = 0b0010,
-			MOVE  = 0b0100
+			QUERY = 0b01000, 
+			MOVE  = 0b10000
 		};
 	}
 
@@ -58,6 +62,14 @@ namespace ppc
 
 	//! A list of all the directions for easy iteration.
 	static const auto g_directions = { FORWARD, RIGHT, BACKWARDS, LEFT };
+
+	//! Debug purpose output stream operator.
+	inline std::ostream& operator<<(std::ostream& out, const query_result& result)
+	{
+		out << "( FORWARD = " << result[FORWARD] << ", BACKWARDS = " << result[BACKWARDS]
+			<< ", LEFT = " << result[LEFT] << ", RIGHT = " << result[RIGHT] << " )";
+		return out;
+	}
 
 	//! Returns the direction resulting from applying the given two direction consecutively.
 	/*!
@@ -94,6 +106,7 @@ namespace ppc
 
 	//! Returns the resulting position after moving on the given direction, starting
 	//from the given position.
+	//TODO: rename to offset_position
 	constexpr auto get_position(index_pair position, const Direction direction)
 	{
 		const auto offset = get_offset(direction);

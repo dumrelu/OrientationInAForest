@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <functional>
 
 namespace ppc
 {
@@ -36,34 +37,161 @@ namespace ppc
 
 			return areas;
 		}
+
+		auto find_next_direction(const query_result& result)
+		{
+			for (const auto dir : { FORWARD, LEFT, RIGHT, BACKWARDS })
+			{
+				if (result[dir] == OPEN || result[dir] == ROAD)
+				{
+					return dir;
+				}
+			}
+
+			PPC_LOG(fatal) << "Unable to find next direction";
+			assert(false);
+			return FORWARD;
+		}
+
+		auto extend_pattern(Pattern& pattern, index_pair& position, const Direction orientation, const query_result& qResult)
+		{
+			auto dir = get_offset(orientation);
+			auto growX = false;
+			auto growY = false;
+			auto xOffset = 0;
+			auto yOffset = 0;
+
+			if (position.first + dir.first == 0)	//Shift the whole matrix, so there's no need to change the position.
+			{
+				growX = true;
+				xOffset = 1;
+			}
+			else if (position.first + dir.first == pattern.width - 1)	//The matrix remains unchanged(just grows), so change the position.
+			{
+				growX = true;
+				++position.first;
+			}
+			
+			if (position.second + dir.second == 0)
+			{
+				growY = true;
+				yOffset = 1;
+			}
+			else if (position.second + dir.second == pattern.height - 1)
+			{
+				growY = true;
+				++position.second;
+			}
+
+			Pattern newPattern;
+			newPattern.height = pattern.height + (growY ? 1 : 0);
+			newPattern.width = pattern.width + (growX ? 1 : 0);
+			if (!growX && !growY)
+			{
+				newPattern.zones = std::move(pattern.zones);
+				position = get_position(position, orientation);
+			}
+			else
+			{
+				newPattern.zones = { newPattern.height, {newPattern.width, UNKNOWN} };
+				for (index_type y = 0; y < pattern.height; ++y)
+				{
+					for (index_type x = 0; x < pattern.width; ++x)
+					{
+						newPattern.zones[y + yOffset][x + xOffset] = pattern.zones[y][x];
+					}
+				}
+			}
+
+			for (const auto direction : g_directions)
+			{
+				const auto orientated = combine_directions(orientation, direction);
+				const auto orientatedPos = get_position(position, orientated);
+				newPattern.zones[orientatedPos.second][orientatedPos.first] = qResult[direction];
+			}
+			pattern = std::move(newPattern);
+
+			PPC_LOG(trace) << "New pattern: " << pattern;
+		}
 	}
 
 	index_pair LocationFinderMaster::run(const Map& map)
 	{
 		const auto numOfWorkers = m_workers.size() - 1;
 		assert(numOfWorkers);
-		PPC_LOG(debug) << "Number of workers available for location finding: " << numOfWorkers;
+		PPC_LOG(info) << "Number of workers available for location finding: " << numOfWorkers;
 
 		auto areas = split(map, numOfWorkers);
+		assert(areas.size() == static_cast<decltype(areas.size())>(numOfWorkers + 1));
 		mpi::scatter(m_workers, areas, areas.front(), 0);
 
-		PPC_LOG(trace) << "Sending query...";
-		Direction dir = FORWARD;
-		m_orientee.send(1, tags::QUERY | tags::MOVE, dir);
+		auto numOfPatternMatches = 0;
+		auto orientation = FORWARD;
+		Pattern pattern;
+		index_pair patternPosition;
+		Direction moveDir;
+		
+		std::tie(pattern, patternPosition, moveDir) = initialQuery(orientation);
+
+		do
+		{
+			auto queryResult = query(moveDir);
+
+			orientation = combine_directions(orientation, moveDir);
+			extend_pattern(pattern, patternPosition, orientation, queryResult);
+			moveDir = find_next_direction(queryResult);
+
+			/*mpi::broadcast(m_workers, pattern, 0);
+			mpi::reduce(m_workers, 0, numOfPatternMatches, std::plus<int>(), 0);
+			assert(numOfPatternMatches >= 1);*/
+			//} while (numOfPatternMatches != 1);
+
+			numOfPatternMatches++;
+		} while (numOfPatternMatches < 20);
+
+		return {};
+	}
+
+	std::tuple<Pattern, index_pair, Direction> LocationFinderMaster::initialQuery(Direction orientation)
+	{
+		Pattern pattern{ 3, 3,{ 3,{ 3, UNKNOWN } } };
+		index_pair patternPosition{ 1, 1 };
+		Direction moveDirection = FORWARD;
+
+		auto result = query();
+		for (const auto dir : g_directions)
+		{
+			const auto pos = get_position(patternPosition, combine_directions(orientation, dir));
+			pattern.zones[pos.second][pos.first] = result[dir];
+		}
+		moveDirection = find_next_direction(result);
+
+		return { std::move(pattern), patternPosition, moveDirection };
+	}
+
+	query_result LocationFinderMaster::query(boost::optional<Direction> direction)
+	{
+		if (direction)
+		{
+			PPC_LOG(trace) << "Sending query and move(direction = " << *direction << ")...";
+			m_orientee.send(1, tags::MOVE | tags::QUERY, *direction);
+		}
+		else
+		{
+			PPC_LOG(trace) << "Sending query...";
+			Direction dummy = FORWARD;
+			m_orientee.send(1, tags::QUERY, dummy);
+		}
 
 		query_result result;
 		auto status = m_orientee.recv(mpi::any_source, mpi::any_tag, result);
-		if (status.tag() != tags::OK)
+		if (status.tag() & tags::ERROR)
 		{
-			PPC_LOG(fatal) << "Invalid query";
-			std::exit(1);
+			PPC_LOG(fatal) << "Query fatal error!" << std::endl;
+			assert(false);
 		}
-		PPC_LOG(trace) << "Received query result: ( FWD = "
-			<< result[FORWARD] << ", BCK = " << result[BACKWARDS]
-			<< ", LEFT = " << result[LEFT] << ", RIGHT = " << result[RIGHT] << ")";
+		PPC_LOG(trace) << "Received query result: " << result;
 
-		m_orientee.send(1, tags::STOP, dir);
-
-		return {};
+		return result;
 	}
 }

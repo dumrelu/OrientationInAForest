@@ -8,6 +8,8 @@
 #include <boost/serialization/serialization.hpp>
 #include <boost/serialization/vector.hpp>
 
+#include <ostream>
+
 namespace ppc
 {
 	struct Pattern;
@@ -45,7 +47,7 @@ namespace ppc
 
 	namespace detail
 	{
-		const bool is_pattern_inside_area(const Area& area, const index_type x, const index_type y, const Pattern& pattern)
+		inline const bool is_pattern_inside_area(const Area& area, const index_type x, const index_type y, const Pattern& pattern)
 		{
 			return x >= area.x && x + pattern.width <= area.x + area.width
 				&& y >= area.y && y + pattern.height <= area.y + area.height;
@@ -107,5 +109,21 @@ namespace ppc
 		}
 
 		return matches;
+	}
+
+	//! Debug purpose output stream operator.
+	static std::ostream& operator<<(std::ostream& out, const Pattern& pattern)
+	{
+		out << pattern.height << " " << pattern.width << std::endl;
+		for (const auto& row : pattern.zones)
+		{
+			for (const auto zone : row)
+			{
+				out << zone << " ";
+			}
+			std::endl(out);
+		}
+
+		return out;
 	}
 }
