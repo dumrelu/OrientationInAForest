@@ -19,8 +19,10 @@ namespace ppc
 		index_pair run(const Map& map);
 
 	private:
-		std::tuple<Pattern, index_pair, Direction> initialQuery(Direction orientation);
+		std::pair<query_result, Pattern> initialQuery(Direction initialDirection);
 		query_result query(boost::optional<Direction> direction = {});
+		index_pair computeFinalLocation(const index_pair& patternPosition);
+		const bool validateSolution(const index_pair& finalLocation);
 
 
 		mpi::communicator m_workers;

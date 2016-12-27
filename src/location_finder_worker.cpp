@@ -147,6 +147,10 @@ namespace ppc
 			}
 		}
 
-		return {};
+		index_pair finalLocation;
+		mpi::broadcast(m_workers, finalLocation, 0);
+		PPC_LOG(info) << "Received final location. Work done.";
+
+		return finalLocation;
 	}
 }

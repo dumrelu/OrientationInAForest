@@ -51,6 +51,7 @@ namespace ppc
 
 			if (tag & tags::VERIFY)
 			{
+				PPC_LOG(trace) << "Sending position for validation...";
 				m_orientee.send(status.source(), tags::OK, position);
 			}
 

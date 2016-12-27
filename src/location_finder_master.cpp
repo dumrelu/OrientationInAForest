@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <functional>
-
+#include <sstream>
 
 namespace ppc
 {
@@ -112,97 +112,92 @@ namespace ppc
 				newPattern.zones[orientatedPos.second][orientatedPos.first] = qResult[direction];
 			}
 			pattern = std::move(newPattern);
+		}
 
-			PPC_LOG(trace) << "New pattern: " << pattern;
+		//TODO: For some reason ostream << index_pair doesn't work with boost::log...
+		inline auto to_string(const index_pair& pair)
+		{
+			return static_cast<const std::ostringstream&>(std::ostringstream{} << "( x = " << pair.first << ", y = " << pair.second << " )").str();
 		}
 	}
 
 	index_pair LocationFinderMaster::run(const Map& map)
 	{
 		const auto numOfWorkers = m_workers.size() - 1;
-		assert(numOfWorkers);
-		PPC_LOG(info) << "Number of workers available for location finding: " << numOfWorkers;
+		assert(numOfWorkers >= 1);
+		PPC_LOG(info) << "Number of workers available for the location finding phase: " << numOfWorkers;
 
 		auto areas = split(map, numOfWorkers);
 		assert(areas.size() == static_cast<decltype(areas.size())>(numOfWorkers + 1));
 		mpi::scatter(m_workers, areas, areas.front(), 0);
 
-		auto numOfPatternMatches = 0;
-		/*auto orientation = FORWARD;
-		Pattern pattern;*/
-		PatternGrowth patternGrowth{ {}, FORWARD };
-		index_pair patternPosition;
-		Direction moveDir;
+		Pattern pattern{};
+		Direction orientation = FORWARD;
+		Direction growthDirection = orientation;
+		index_pair patternPosition{ 1, 1 };
+		query_result queryResult{};
+
+		std::tie(queryResult, pattern) = initialQuery(orientation);
+
 		
-		std::tie(patternGrowth.first, patternPosition, moveDir) = initialQuery(patternGrowth.second);
-		//patternGrowth.second = combine_directions(patternGrowth.second, moveDir);
-
-
 		do
 		{
-			numOfPatternMatches = 0;
+			mpi::broadcast(m_workers, PatternGrowth{ pattern, orientation }, 0);
 
-			mpi::broadcast(m_workers, patternGrowth, 0);
-			patternGrowth.second = combine_directions(patternGrowth.second, moveDir);
+			int totalNumberOfMatches = 0;
+			mpi::reduce(m_workers, 0, totalNumberOfMatches, std::plus<int>(), 0);
+			assert(totalNumberOfMatches >= 1);
 
-			
-
-			mpi::reduce(m_workers, 0, numOfPatternMatches, std::plus<int>(), 0);
-			PPC_LOG(info) << "Total number of locations found: " << numOfPatternMatches;
-			assert(numOfPatternMatches >= 1);
-
-			if (numOfPatternMatches != 1)
+			if (totalNumberOfMatches == 1)
 			{
-				auto queryResult = query(moveDir);
-
-				extend_pattern(patternGrowth.first, patternPosition, patternGrowth.second, queryResult);
-				moveDir = find_next_direction(queryResult);
+				PPC_LOG(info) << "Location found!";
+				break;
 			}
+			else
+			{
+				auto moveDirection = find_next_direction(queryResult);
+				queryResult = query(moveDirection);
 
-		} while (numOfPatternMatches != 1);
+				orientation = combine_directions(orientation, moveDirection);
+				extend_pattern(pattern, patternPosition, orientation, queryResult);
+			}
+		} while (true);	//TODO: maybe set a max number of iteration in case there is no solution?
 
-		PPC_LOG(info) << "Location found! Computing final location...";
-		ppc::mpi::broadcast(m_workers, ppc::dummy<ppc::PatternGrowth>, 0);
+		PPC_LOG(info) << "Preparing to shutdown the workers...";
+		mpi::broadcast(m_workers, dummy<PatternGrowth>, 0);
 
-		index_pair patternMatchLocation;
-		auto status = m_workers.recv(mpi::any_source, mpi::any_tag, patternMatchLocation);
-		//PPC_LOG(info) << "Received pattern location from process #" << status.source() + 1 << ": " << patternMatchLocation;
-		std::cout << "Received pattern location from process #" << status.source() + 1 << ": " << patternMatchLocation << std::endl;
+		auto finalLocation = computeFinalLocation(patternPosition);
+		const auto isCorrect = validateSolution(finalLocation);
+		if (isCorrect)
+		{
+			PPC_LOG(info) << "The identified solution is valid!";
+		}
+		else
+		{
+			PPC_LOG(info) << "The identified solution is invalid!";
+			assert(false);
+		}
 
-		index_pair finalLocation{ patternMatchLocation.first + patternPosition.first, patternMatchLocation.second + patternPosition.second };
-		//PPC_LOG(info) << "Computed final location: " << finalLocation;
-		std::cout << "Computed final location: " << finalLocation << std::endl;
+		mpi::broadcast(m_workers, finalLocation, 0);
 
-		PPC_LOG(info) << "Validating solution...";
-		m_orientee.send(1, tags::VERIFY, dummy<Direction>);
-		index_pair realLocation;
-		m_orientee.recv(mpi::any_source, mpi::any_tag, realLocation);
-		std::cout << "Real location: " << realLocation << std::endl;
-		//PPC_LOG(info) << "Real location: " << realLocation;
-		PPC_LOG(info) << "Is solution valid: " << std::boolalpha << (finalLocation == realLocation);
-
-
-		/*	numOfPatternMatches++;
-		} while (numOfPatternMatches < 5);*/
-
-		return {};
+		return finalLocation;
 	}
 
-	std::tuple<Pattern, index_pair, Direction> LocationFinderMaster::initialQuery(Direction orientation)
+	std::pair<query_result, Pattern> LocationFinderMaster::initialQuery(Direction initialDirection)
 	{
-		Pattern pattern{ 3, 3,{ 3,{ 3, UNKNOWN } } };
-		index_pair patternPosition{ 1, 1 };
-		Direction moveDirection = FORWARD;
+		PPC_LOG(info) << "Running initial query...";
+		query_result queryResult = query();
+		Pattern pattern{ 3, 3, {3, {3, UNKNOWN}} };
 
-		auto result = query();
+		const index_pair middle{ 1, 1 };
 		for (const auto dir : g_directions)
 		{
-			const auto pos = get_position(patternPosition, combine_directions(orientation, dir));
-			pattern.zones[pos.second][pos.first] = result[dir];
+			const auto pos = get_position(middle, combine_directions(initialDirection, dir));
+			pattern.zones[pos.second][pos.first] = queryResult[dir];
 		}
-		moveDirection = find_next_direction(result);
 
-		return { std::move(pattern), patternPosition, moveDirection };
+		PPC_LOG(info) << "Initial pattern: " << pattern;
+		return { queryResult, std::move(pattern) };
 	}
 
 	query_result LocationFinderMaster::query(boost::optional<Direction> direction)
@@ -229,5 +224,31 @@ namespace ppc
 		PPC_LOG(trace) << "Received query result: " << result;
 
 		return result;
+	}
+
+	index_pair LocationFinderMaster::computeFinalLocation(const index_pair& patternPosition)
+	{
+		index_pair matchedPatternLocation;
+		auto status = m_workers.recv(mpi::any_source, mpi::any_tag, matchedPatternLocation);
+		PPC_LOG(info) << "Received the final pattern match from worker #" << status.source() << ": " << to_string(matchedPatternLocation);
+
+		index_pair finalLocation{ matchedPatternLocation.first + patternPosition.first,
+			matchedPatternLocation.second + patternPosition.second
+		};
+		PPC_LOG(info) << "Computed final location: " << to_string(finalLocation);
+
+		return finalLocation;
+	}
+
+	const bool LocationFinderMaster::validateSolution(const index_pair& finalLocation)
+	{
+		PPC_LOG(info) << "Validiating solution...";
+
+		index_pair realLocation;
+		m_orientee.send(1, tags::VERIFY, dummy<Direction>);
+		m_orientee.recv(mpi::any_source, mpi::any_tag, realLocation);
+		PPC_LOG(info) << "Received real location: " << to_string(realLocation);
+
+		return finalLocation == realLocation;
 	}
 }
