@@ -12,9 +12,9 @@ namespace ppc
 	using index_pair = std::pair<index_type, index_type>;
 
 	//! Debug purpose output stream operator.
-	inline std::ostream& operator<<(std::ostream& out, const index_pair& indexPair)
+	static std::ostream& operator<<(std::ostream& out, const index_pair& indexPair)
 	{
-		out << "( x = " << indexPair << ", y = " << indexPair.second << " )";
+		out << "( x = " << indexPair.first << ", y = " << indexPair.second << " )";
 		return out;
 	}
 }

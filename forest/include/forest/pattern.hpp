@@ -51,34 +51,34 @@ namespace ppc
 		{
 			return x + pattern.width <= map.width() && y + pattern.height <= map.height();
 		}
+	}
 
-		template <typename MapConcept>
-		const bool matches_pattern(const MapConcept& map, const Area& area, index_type x, index_type y, const Pattern& pattern)
+	template <typename MapConcept>
+	const bool match_pattern(const MapConcept& map, const Pattern& pattern, index_type x, index_type y)
+	{
+		if (!detail::is_pattern_inside_map(map, x, y, pattern))
 		{
-			if (!is_pattern_inside_map(map, x, y, pattern))
-			{
-				return false;
-			}
+			return false;
+		}
 
-			for (index_type currentY = y; currentY < y + pattern.height; ++currentY)
+		for (index_type currentY = y; currentY < y + pattern.height; ++currentY)
+		{
+			for (index_type currentX = x; currentX < x + pattern.width; ++currentX)
 			{
-				for (index_type currentX = x; currentX < x + pattern.width; ++currentX)
+				const auto mapZone = map[currentY][currentX];
+				if (mapZone == UNKNOWN)
 				{
-					const auto mapZone = map[currentY][currentX];
-					if (mapZone == UNKNOWN)
-					{
-						return false;
-					}
+					return false;
+				}
 
-					const auto patternZone = pattern.zones[currentY - y][currentX - x];
-					if (!(mapZone & patternZone))
-					{
-						return false;
-					}
+				const auto patternZone = pattern.zones[currentY - y][currentX - x];
+				if (!(mapZone & patternZone))
+				{
+					return false;
 				}
 			}
-			return true;
 		}
+		return true;
 	}
 
 	template <typename MapConcept>
@@ -99,7 +99,7 @@ namespace ppc
 		{
 			for (index_type x = area.x; x < area.x + area.width; ++x)
 			{
-				if (detail::matches_pattern(map, area, x, y, pattern))
+				if (match_pattern(map, pattern, x, y))
 				{
 					matches.push_back({ x, y });
 				}

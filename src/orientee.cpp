@@ -1,4 +1,5 @@
 #include "orientee.hpp"
+#include "forest/index.hpp"
 
 namespace ppc
 {
@@ -46,6 +47,11 @@ namespace ppc
 				m_orientee.send(status.source(), tags::OK, result);
 
 				PPC_LOG(trace) << "Sending query result: " << result;
+			}
+
+			if (tag & tags::VERIFY)
+			{
+				m_orientee.send(status.source(), tags::OK, position);
 			}
 
 			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];

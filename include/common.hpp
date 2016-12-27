@@ -4,6 +4,7 @@
 #include "forest/zone.hpp"
 #include "forest/area.hpp"
 #include "forest/map.hpp"
+#include "forest/pattern.hpp"
 
 #include <array>
 #include <ostream>
@@ -13,6 +14,7 @@
 #include <boost/mpi.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/array.hpp>
+#include <boost/serialization/utility.hpp>
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
@@ -36,8 +38,9 @@ namespace ppc
 		//! Tags used between the orientee and the masters.
 		enum OrienteeTags
 		{
-			QUERY = 0b01000, 
-			MOVE  = 0b10000
+			QUERY = 0b001'000, 
+			MOVE  = 0b010'000, 
+			VERIFY = 0b100'000
 		};
 	}
 
@@ -61,6 +64,9 @@ namespace ppc
 		BACKWARDS, 
 		LEFT
 	};
+
+	//! Used to send a new pattern which includes the grouth direction.
+	using PatternGrowth = std::pair<Pattern, Direction>;
 
 	//! A list of all the directions for easy iteration.
 	static const auto g_directions = { FORWARD, RIGHT, BACKWARDS, LEFT };

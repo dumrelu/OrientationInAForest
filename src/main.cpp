@@ -65,7 +65,7 @@ int main()
 
 	ppc::g_worldID = "World#" + std::to_string(world.rank()) + ": ";
 	PPC_LOG(info) << "World initialized(" << world.size() << " processes)." << std::endl;
-	//assert(world.size() >= 4);
+	assert(world.size() >= 3);
 
 	ppc::Map map;
 	PPC_LOG(info) << "Reading map...";
@@ -85,7 +85,7 @@ int main()
 		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
 		auto location = locationMaster.run(map);
 		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
-		ppc::mpi::broadcast(workers, ppc::dummy<ppc::Pattern>, 0);
+		ppc::mpi::broadcast(workers, ppc::dummy<ppc::PatternGrowth>, 0);
 	}
 	else if (world.rank() == 1)
 	{
