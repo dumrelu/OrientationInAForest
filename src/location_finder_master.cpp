@@ -133,7 +133,6 @@ namespace ppc
 
 		Pattern pattern{};
 		Direction orientation = FORWARD;
-		Direction growthDirection = orientation;
 		index_pair patternPosition{ 1, 1 };
 		query_result queryResult{};
 
@@ -142,7 +141,8 @@ namespace ppc
 		
 		do
 		{
-			mpi::broadcast(m_workers, PatternGrowth{ pattern, orientation }, 0);
+			PatternGrowth patternGrowth{ pattern, orientation };
+			mpi::broadcast(m_workers, patternGrowth, 0);
 
 			int totalNumberOfMatches = 0;
 			mpi::reduce(m_workers, 0, totalNumberOfMatches, std::plus<int>(), 0);
@@ -210,8 +210,7 @@ namespace ppc
 		else
 		{
 			PPC_LOG(trace) << "Sending query...";
-			Direction dummy = FORWARD;
-			m_orientee.send(1, tags::QUERY, dummy);
+			m_orientee.send(1, tags::QUERY, dummy<Direction>);
 		}
 
 		query_result result;

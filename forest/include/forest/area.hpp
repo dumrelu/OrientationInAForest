@@ -4,9 +4,6 @@
 
 #include <iosfwd>
 
-#include <boost/optional.hpp>
-#include <boost/serialization/serialization.hpp>
-
 namespace ppc
 {
 	struct Area;

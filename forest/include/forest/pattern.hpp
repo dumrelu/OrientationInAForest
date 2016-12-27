@@ -4,10 +4,6 @@
 #include "map.hpp"
 #include "area.hpp"
 
-#include <boost/optional.hpp>
-#include <boost/serialization/serialization.hpp>
-#include <boost/serialization/vector.hpp>
-
 #include <ostream>
 
 namespace ppc

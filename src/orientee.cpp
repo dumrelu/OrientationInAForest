@@ -12,7 +12,7 @@ namespace ppc
 	{
 		query_result run_query(const Map& map, const index_pair& position, const Direction orientation)
 		{
-			query_result result;
+			query_result result{};
 			for (const auto direction : g_directions)
 			{
 				const auto newPosition = get_position(position, combine_directions(orientation, direction));

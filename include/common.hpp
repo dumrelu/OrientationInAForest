@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#pragma warning(push, 0)
+
 #include <boost/mpi.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/array.hpp>
@@ -22,6 +24,8 @@
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/support/date_time.hpp>
+
+#pragma warning(pop)
 
 namespace ppc
 {
@@ -68,12 +72,17 @@ namespace ppc
 	//! Used to send a new pattern which includes the grouth direction.
 	using PatternGrowth = std::pair<Pattern, Direction>;
 
+#pragma warning(push)	//VS implementation limitation warning
+#pragma warning(disable : 4592)
+
 	//! A list of all the directions for easy iteration.
 	static const auto g_directions = { FORWARD, RIGHT, BACKWARDS, LEFT };
 
 	//! Dummies used to send empty messages.
 	template <typename D>
 	static D dummy{};
+
+#pragma warning(pop)
 
 	//! Debug purpose output stream operator.
 	inline std::ostream& operator<<(std::ostream& out, const query_result& result)
@@ -137,3 +146,4 @@ namespace ppc
 	trace < debug < info < warning < error < fatal.
 */
 #define PPC_LOG(severity) BOOST_LOG_TRIVIAL(severity) << ppc::g_worldID
+

@@ -6,8 +6,6 @@
 #include <random>
 #include <tuple>
 
-#include <boost/optional.hpp>
-
 namespace ppc
 {
 	//!
