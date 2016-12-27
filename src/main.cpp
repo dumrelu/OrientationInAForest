@@ -18,8 +18,15 @@ int main()
 	//http://www.boost.org/doc/libs/1_54_0/libs/log/doc/html/boost/log/add_console_lo_idp21543664.html
 	namespace logging = boost::log;
 	namespace keywords = logging::keywords;
+	namespace expr = logging::expressions;
+	//TODO: stop using g_worldID and insert it here
 	logging::add_console_log(std::cout,
-		keywords::format = "[%TimeStamp%]: %Message%",
+		keywords::format = (
+			expr::stream << "["
+			<< expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S")
+			<< "] : <" << logging::trivial::severity
+			<< "> " << expr::smessage
+		),
 		keywords::auto_flush = true
 	);
 	logging::add_common_attributes();
@@ -29,13 +36,27 @@ int main()
 	);*/
 
 	const std::string testMap{
-		"6 7\n"
-		"CCCCCCC\n"
-		"CCOROCC\n"
-		"CCORTCC\n"
-		"CCOROCC\n"
-		"CCOROCC\n"
-		"CCCCCCC\n"
+		"20 20\n"
+		"CCCCCCCCCCCCCCCCCCCC\n"
+		"CCCCCCCCCRCCCCCCCCCC\n"
+		"CCCTCCCCCRCCCCCCCCCC\n"
+		"CCCCCCCCCRCCCCCCCTCC\n"
+		"CCCCCCCCCRCCCCCCCCCC\n"
+		"CCCCCCCCCRCCCTOCCCCC\n"
+		"CCTOCCCCCRCCCCRRCCCC\n"
+		"CCCCCCCCRCRCCCCCCCCC\n"
+		"CCCCCCCRCCCRCCCCCCCC\n"
+		"CCCCCCRCCCCCRCCCCCCC\n"
+		"CCCCCRCCCCCCCRCCCCCC\n"
+		"CCCCRCCCCCCCCCRCCCCC\n"
+		"CCCCCRCCCCCTCCCRCCCC\n"
+		"CCCCCCRCCCCCCCCCRCCC\n"
+		"CCCCCCRCCCCCCCCCCRCC\n"
+		"CCTCCCRCCCCCCCCCCRCC\n"
+		"CCCCCCRRCCCTCCCCOOOC\n"
+		"CCCCCCRCCCCCCCCCOOOC\n"
+		"CCCCCCRCCCTOCCCCOOOC\n"
+		"RRRRRRRRRRRRRRRRRRRR\n"
 	};
 	std::istringstream iss{ testMap };
 
@@ -63,6 +84,8 @@ int main()
 	{
 		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
 		auto location = locationMaster.run(map);
+		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+		ppc::mpi::broadcast(workers, ppc::dummy<ppc::Pattern>, 0);
 	}
 	else if (world.rank() == 1)
 	{

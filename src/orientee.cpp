@@ -24,7 +24,7 @@ namespace ppc
 	index_pair Orientee::run(const Map& map)
 	{
 		auto tag = 0;
-		index_pair position{ 3, 1 };	//TODO: random valid position.
+		index_pair position{ 15, 6 };		//TODO: random valid position.
 		Direction orientation = FORWARD;	//TODO: random orientation
 		do
 		{
@@ -37,7 +37,6 @@ namespace ppc
 			{
 				orientation = combine_directions(orientation, moveDirection);
 				position = get_position(position, orientation);
-				PPC_LOG(trace) << "Middle = " << map[position.second][position.first];
 				assert(map[position.second][position.first] != CLIFF);
 			}
 
@@ -48,6 +47,8 @@ namespace ppc
 
 				PPC_LOG(trace) << "Sending query result: " << result;
 			}
+
+			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];
 		} while (!(tag & tags::STOP));
 
 		return {};

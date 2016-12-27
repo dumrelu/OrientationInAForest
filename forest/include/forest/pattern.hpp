@@ -47,21 +47,19 @@ namespace ppc
 
 	namespace detail
 	{
-		inline const bool is_pattern_inside_area(const Area& area, const index_type x, const index_type y, const Pattern& pattern)
+		inline const bool is_pattern_inside_map(const Map& map, const index_type x, const index_type y, const Pattern& pattern)
 		{
-			return x >= area.x && x + pattern.width <= area.x + area.width
-				&& y >= area.y && y + pattern.height <= area.y + area.height;
+			return x + pattern.width <= map.width() && y + pattern.height <= map.height();
 		}
 
 		template <typename MapConcept>
 		const bool matches_pattern(const MapConcept& map, const Area& area, index_type x, index_type y, const Pattern& pattern)
 		{
-			if (!is_pattern_inside_area(area, x, y, pattern))
+			if (!is_pattern_inside_map(map, x, y, pattern))
 			{
 				return false;
 			}
 
-			index_type patternIdx = 0;
 			for (index_type currentY = y; currentY < y + pattern.height; ++currentY)
 			{
 				for (index_type currentX = x; currentX < x + pattern.width; ++currentX)
@@ -72,7 +70,7 @@ namespace ppc
 						return false;
 					}
 
-					const auto patternZone = pattern.zones[patternIdx++];
+					const auto patternZone = pattern.zones[currentY - y][currentX - x];
 					if (!(mapZone & patternZone))
 					{
 						return false;

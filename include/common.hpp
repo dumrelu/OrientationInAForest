@@ -13,11 +13,13 @@
 #include <boost/mpi.hpp>
 #include <boost/serialization/vector.hpp>
 #include <boost/serialization/array.hpp>
+#include <boost/date_time/posix_time/posix_time_types.hpp>
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/utility/setup/console.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/support/date_time.hpp>
 
 namespace ppc
 {
@@ -62,6 +64,10 @@ namespace ppc
 
 	//! A list of all the directions for easy iteration.
 	static const auto g_directions = { FORWARD, RIGHT, BACKWARDS, LEFT };
+
+	//! Dummies used to send empty messages.
+	template <typename D>
+	static D dummy{};
 
 	//! Debug purpose output stream operator.
 	inline std::ostream& operator<<(std::ostream& out, const query_result& result)

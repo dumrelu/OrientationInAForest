@@ -53,7 +53,7 @@ namespace ppc
 			return FORWARD;
 		}
 
-		auto extend_pattern(Pattern& pattern, index_pair& position, const Direction orientation, const query_result& qResult)
+		void extend_pattern(Pattern& pattern, index_pair& position, const Direction orientation, const query_result& qResult)
 		{
 			auto dir = get_offset(orientation);
 			auto growX = false;
@@ -135,19 +135,20 @@ namespace ppc
 
 		do
 		{
+			mpi::broadcast(m_workers, pattern, 0);
+
 			auto queryResult = query(moveDir);
 
 			orientation = combine_directions(orientation, moveDir);
 			extend_pattern(pattern, patternPosition, orientation, queryResult);
 			moveDir = find_next_direction(queryResult);
 
-			/*mpi::broadcast(m_workers, pattern, 0);
-			mpi::reduce(m_workers, 0, numOfPatternMatches, std::plus<int>(), 0);
+			/*mpi::reduce(m_workers, 0, numOfPatternMatches, std::plus<int>(), 0);
 			assert(numOfPatternMatches >= 1);*/
 			//} while (numOfPatternMatches != 1);
 
 			numOfPatternMatches++;
-		} while (numOfPatternMatches < 20);
+		} while (numOfPatternMatches < 5);
 
 		return {};
 	}
