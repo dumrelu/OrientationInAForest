@@ -1,6 +1,11 @@
+#include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <random>
+#include <fstream>
+#include <thread>
 
 #include "forest/map.hpp"
 #include "forest/area.hpp"
@@ -68,9 +73,54 @@ int main()
 	assert(world.size() >= 3);
 
 	ppc::Map map;
-	PPC_LOG(info) << "Reading map...";
-	iss >> map;
-	PPC_LOG(info) << "Map read(height = " << map.height() << ", width = " << map.width() << ")";
+	if (world.rank() == 0)
+	{
+		PPC_LOG(info) << "Generating random map...";
+		const auto height = 10000u;
+		const auto width = 10000u;
+		map = { height, width, {height, {width, ppc::CLIFF}} };
+
+		std::random_device rd;
+		std::default_random_engine engine{ rd() };
+		std::normal_distribution<> distribution{ 3, 1 };
+
+		//ppc::ZoneType zones[] = { ppc::OPEN, ppc::ROAD, ppc::TREE, ppc::CLIFF };
+		constexpr ppc::ZoneType zones[] = { ppc::CLIFF, ppc::ROAD, ppc::OPEN, ppc::TREE, ppc::OPEN, ppc::ROAD, ppc::CLIFF };
+		constexpr auto numOfZones = sizeof(zones) / sizeof(zones[0]);
+		for (auto y = 1u; y < height - 1; ++y)
+		{
+			for (auto x = 1u; x < width - 1; ++x)
+			{
+				auto randomValue = distribution(engine);
+				randomValue = std::min(std::max(0.0, randomValue), static_cast<double>(numOfZones - 1));
+
+				map[y][x] = zones[static_cast<unsigned>(randomValue)];
+			}
+		}
+
+		{
+			std::ofstream file{ "random_map.txt" };
+			assert(file);
+			file << map;
+		}
+
+		world.barrier();
+	}
+	else
+	{
+		world.barrier();
+
+		std::ifstream file{ "random_map.txt" };
+
+		PPC_LOG(info) << "Reading map...";
+		file >> map;
+		PPC_LOG(info) << "Map read(height = " << map.height() << ", width = " << map.width() << ")";
+	}
+
+
+	PPC_LOG(info) << "Getting started...";
+	std::this_thread::sleep_for(std::chrono::seconds{ 5 });
+	world.barrier();	//TODO: necessary?
 
 	auto workers = world.split(world.rank() != 1);
 	PPC_LOG(info) << "Workers communicator initialized.";

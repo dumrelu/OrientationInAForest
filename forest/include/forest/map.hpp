@@ -33,8 +33,8 @@ namespace ppc
 		const Zones& data() const { return m_zones; }
 
 		//! 2D access operator.
-		auto operator[](const index_type row) { return m_zones[row]; }
-		auto operator[](const index_type row) const { return m_zones[row]; }
+		decltype(auto) operator[](const index_type row) { return m_zones[row]; }
+		decltype(auto) operator[](const index_type row) const { return m_zones[row]; }
 
 	private:
 		friend std::istream& operator >> (std::istream& in, Map& map);

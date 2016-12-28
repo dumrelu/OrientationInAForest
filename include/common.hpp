@@ -145,5 +145,5 @@ namespace ppc
 /*!
 	trace < debug < info < warning < error < fatal.
 */
-#define PPC_LOG(severity) BOOST_LOG_TRIVIAL(severity) << ppc::g_worldID
+#define PPC_LOG(severity) std::cout << std::endl << ppc::g_worldID
 

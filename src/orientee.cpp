@@ -1,6 +1,8 @@
 #include "orientee.hpp"
 #include "forest/index.hpp"
 
+#include <random>
+
 namespace ppc
 {
 	Orientee::Orientee(mpi::communicator orientee)
@@ -20,12 +22,34 @@ namespace ppc
 			}
 			return result;
 		}
+
+		auto find_random_position(const Map& map)
+		{
+			std::random_device rd;
+			std::default_random_engine engine{ rd() };
+			std::uniform_int_distribution<> xDistribution{ 0, static_cast<int>(map.width()) };
+			std::uniform_int_distribution<> yDistribution{ 0, static_cast<int>(map.height()) };
+
+			index_pair position;
+			auto isPositionValid = [&]()
+			{
+				const auto zone = map[position.second][position.first];
+				return zone == ROAD || zone == OPEN;
+			};
+
+			do
+			{
+				position = { xDistribution(engine), yDistribution(engine) };
+			} while (!isPositionValid());
+
+			return position;
+		}
 	}
 
 	index_pair Orientee::run(const Map& map)
 	{
 		auto tag = 0;
-		index_pair position{ 15, 6 };		//TODO: random valid position.
+		auto position = find_random_position(map);
 		Direction orientation = FORWARD;	//TODO: random orientation
 		do
 		{
