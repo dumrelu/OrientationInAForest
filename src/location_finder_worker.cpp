@@ -129,7 +129,7 @@ namespace ppc
 				break;
 			}
 
-			PPC_LOG(info) << "Pattern received.";
+			PPC_LOG(debug) << "Pattern received.";
 			PPC_LOG(debug) << "Received pattern: " << pattern;
 			
 			const bool isFirstRun = prevMatches.empty();
@@ -142,7 +142,7 @@ namespace ppc
 				numOfMatches = informedPatterhMatching();
 			}
 
-			PPC_LOG(info) << "Number of matches: " << numOfMatches;
+			PPC_LOG(debug) << "Number of matches: " << numOfMatches;
 			mpi::reduce(m_workers, numOfMatches, std::plus<int>(), 0);
 		} while (true);
 
@@ -155,6 +155,7 @@ namespace ppc
 			});
 			assert(matchIt != prevMatches.cend());
 			m_workers.send(0, tags::OK, matchIt->front());
+			m_workers.send(0, tags::OK, static_cast<int>(matchIt - prevMatches.cbegin()));
 		}
 
 		index_pair finalLocation;

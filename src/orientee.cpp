@@ -44,13 +44,32 @@ namespace ppc
 
 			return position;
 		}
+
+		auto find_random_direction()
+		{
+			std::random_device rd;
+			std::default_random_engine engine{ rd() };
+			std::uniform_int_distribution<> directionDistribution{ 0, 3 };
+
+			return static_cast<Direction>(directionDistribution(engine));
+		}
+
+		//TODO: For some reason ostream << index_pair doesn't work with boost::log...
+		inline auto to_string(const index_pair& pair)
+		{
+			return static_cast<const std::ostringstream&>(std::ostringstream{} << "( x = " << pair.first << ", y = " << pair.second << " )").str();
+		}
 	}
 
 	index_pair Orientee::run(const Map& map)
 	{
-		auto tag = 0;
 		auto position = find_random_position(map);
-		Direction orientation = FORWARD;	//TODO: random orientation
+		PPC_LOG(info) << "Chosen starting position: " << to_string(position);
+
+		Direction orientation = find_random_direction();
+		PPC_LOG(info) << "Chosen starting orientation: " << orientation;
+
+		auto tag = 0;
 		do
 		{
 			Direction moveDirection = FORWARD;

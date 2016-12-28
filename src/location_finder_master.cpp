@@ -114,6 +114,22 @@ namespace ppc
 			pattern = std::move(newPattern);
 		}
 
+		auto rotate_position(const index_pair& position, const index_type width)
+		{
+			return index_pair{ position.second, width - 1 - position.first };
+		}
+
+		auto rotate_position(index_pair position, int rotationCount, index_type height, index_type width)
+		{
+			for (auto i = 0; i < rotationCount; ++i)
+			{
+				position = rotate_position(position, width);
+				std::swap(height, width);
+			}
+
+			return position;
+		}
+
 		//TODO: For some reason ostream << index_pair doesn't work with boost::log...
 		inline auto to_string(const index_pair& pair)
 		{
@@ -140,7 +156,7 @@ namespace ppc
 
 		std::tie(queryResult, pattern) = initialQuery(orientation);
 
-		
+		auto numOfIterations = 0u;
 		do
 		{
 			PatternGrowth patternGrowth{ pattern, orientation };
@@ -149,6 +165,7 @@ namespace ppc
 			int totalNumberOfMatches = 0;
 			mpi::reduce(m_workers, 0, totalNumberOfMatches, std::plus<int>(), 0);
 			assert(totalNumberOfMatches >= 1);
+			PPC_LOG(info) << "Number of matches at iteration #" << numOfIterations++ << ": " << totalNumberOfMatches;
 
 			if (totalNumberOfMatches == 1)
 			{
@@ -165,10 +182,11 @@ namespace ppc
 			}
 		} while (true);	//TODO: maybe set a max number of iteration in case there is no solution?
 
+		PPC_LOG(info) << "Solution found in " << numOfIterations << " iterations!";
 		PPC_LOG(info) << "Preparing to shutdown the workers...";
 		mpi::broadcast(m_workers, dummy<PatternGrowth>, 0);
 
-		auto finalLocation = computeFinalLocation(patternPosition);
+		auto finalLocation = computeFinalLocation(patternPosition, pattern.height, pattern.width);
 		const auto isCorrect = validateSolution(finalLocation);
 		if (isCorrect)
 		{
@@ -227,14 +245,19 @@ namespace ppc
 		return result;
 	}
 
-	index_pair LocationFinderMaster::computeFinalLocation(const index_pair& patternPosition)
+	index_pair LocationFinderMaster::computeFinalLocation(const index_pair& patternPosition, const index_type height, const index_type width)
 	{
 		index_pair matchedPatternLocation;
 		auto status = m_workers.recv(mpi::any_source, mpi::any_tag, matchedPatternLocation);
-		PPC_LOG(info) << "Received the final pattern match from worker #" << status.source() << ": " << to_string(matchedPatternLocation);
+		PPC_LOG(info) << "Received the final pattern match position from worker#" << status.source() << ": " << to_string(matchedPatternLocation);
 
-		index_pair finalLocation{ matchedPatternLocation.first + patternPosition.first,
-			matchedPatternLocation.second + patternPosition.second
+		int rotationCount = 0;
+		status = m_workers.recv(mpi::any_source, mpi::any_tag, rotationCount);
+		PPC_LOG(info) << "The pattern was rotated by worker#" << status.source() << " " << rotationCount << " times.";
+
+		auto rotatedPatternPosition = rotate_position(patternPosition, rotationCount, height, width);
+		index_pair finalLocation{ matchedPatternLocation.first + rotatedPatternPosition.first,
+			matchedPatternLocation.second + rotatedPatternPosition.second
 		};
 		PPC_LOG(info) << "Computed final location: " << to_string(finalLocation);
 

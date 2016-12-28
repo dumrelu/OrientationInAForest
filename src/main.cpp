@@ -18,109 +18,63 @@
 
 std::string ppc::g_worldID;
 
-int main()
+int main(int argc, char *argv[])
 {
 	//http://www.boost.org/doc/libs/1_54_0/libs/log/doc/html/boost/log/add_console_lo_idp21543664.html
 	namespace logging = boost::log;
 	namespace keywords = logging::keywords;
 	namespace expr = logging::expressions;
+	namespace sinks = logging::sinks;
+
+	auto format = expr::stream << "["
+		<< expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S")
+		<< "] <" << logging::trivial::severity
+		<< "> - " << expr::smessage;
+
 	//TODO: stop using g_worldID and insert it here
-	logging::add_console_log(std::cout,
-		keywords::format = (
-			expr::stream << "["
-			<< expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S")
-			<< "] : <" << logging::trivial::severity
-			<< "> " << expr::smessage
-		),
+	logging::add_console_log(
+		std::cout,
+		keywords::format = format,
 		keywords::auto_flush = true
 	);
+	logging::add_file_log(
+		keywords::file_name = "sample_%N.log",
+		keywords::rotation_size = 10 * 1024 * 1024,
+		keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
+		keywords::format = format
+	);
 	logging::add_common_attributes();
-	/*logging::core::get()->set_filter
-	(
-		logging::trivial::severity == logging::trivial::trace
-	);*/
 
-	const std::string testMap{
-		"20 20\n"
-		"CCCCCCCCCCCCCCCCCCCC\n"
-		"CCCCCCCCCRCCCCCCCCCC\n"
-		"CCCTCCCCCRCCCCCCCCCC\n"
-		"CCCCCCCCCRCCCCCCCTCC\n"
-		"CCCCCCCCCRCCCCCCCCCC\n"
-		"CCCCCCCCCRCCCTOCCCCC\n"
-		"CCTOCCCCCRCCCCRRCCCC\n"
-		"CCCCCCCCRCRCCCCCCCCC\n"
-		"CCCCCCCRCCCRCCCCCCCC\n"
-		"CCCCCCRCCCCCRCCCCCCC\n"
-		"CCCCCRCCCCCCCRCCCCCC\n"
-		"CCCCRCCCCCCCCCRCCCCC\n"
-		"CCCCCRCCCCCTCCCRCCCC\n"
-		"CCCCCCRCCCCCCCCCRCCC\n"
-		"CCCCCCRCCCCCCCCCCRCC\n"
-		"CCTCCCRCCCCCCCCCCRCC\n"
-		"CCCCCCRRCCCTCCCCOOOC\n"
-		"CCCCCCRCCCCCCCCCOOOC\n"
-		"CCCCCCRCCCTOCCCCOOOC\n"
-		"RRRRRRRRRRRRRRRRRRRR\n"
-	};
-	std::istringstream iss{ testMap };
+#ifdef NDEBUG
+	logging::core::get()->set_filter
+	(
+		logging::trivial::severity >= logging::trivial::info
+	);
+#endif
+
+	if (argc < 2)
+	{
+		PPC_LOG(fatal) << "The program requires an input map as its first argument.";
+		return 1;
+	}
+
+	std::ifstream inputFile{ argv[1] };
+	if (!inputFile)
+	{
+		PPC_LOG(fatal) << "Invalid map filename(" << argv[1] << ").";
+		return 1;
+	}
+
+	PPC_LOG(info) << "Reading the map...";
+	ppc::Map map;
+	inputFile >> map;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
 
 	ppc::g_worldID = "World#" + std::to_string(world.rank()) + ": ";
-	PPC_LOG(info) << "World initialized(" << world.size() << " processes)." << std::endl;
+	PPC_LOG(info) << "World initialized(" << world.size() << " processes).";
 	assert(world.size() >= 3);
-
-	ppc::Map map;
-	if (world.rank() == 0)
-	{
-		PPC_LOG(info) << "Generating random map...";
-		const auto height = 10000u;
-		const auto width = 10000u;
-		map = { height, width, {height, {width, ppc::CLIFF}} };
-
-		std::random_device rd;
-		std::default_random_engine engine{ rd() };
-		std::normal_distribution<> distribution{ 3, 1 };
-
-		//ppc::ZoneType zones[] = { ppc::OPEN, ppc::ROAD, ppc::TREE, ppc::CLIFF };
-		constexpr ppc::ZoneType zones[] = { ppc::CLIFF, ppc::ROAD, ppc::OPEN, ppc::TREE, ppc::OPEN, ppc::ROAD, ppc::CLIFF };
-		constexpr auto numOfZones = sizeof(zones) / sizeof(zones[0]);
-		for (auto y = 1u; y < height - 1; ++y)
-		{
-			for (auto x = 1u; x < width - 1; ++x)
-			{
-				auto randomValue = distribution(engine);
-				randomValue = std::min(std::max(0.0, randomValue), static_cast<double>(numOfZones - 1));
-
-				map[y][x] = zones[static_cast<unsigned>(randomValue)];
-			}
-		}
-
-		{
-			std::ofstream file{ "random_map.txt" };
-			assert(file);
-			file << map;
-		}
-
-		world.barrier();
-	}
-	else
-	{
-		world.barrier();
-
-		std::ifstream file{ "random_map.txt" };
-
-		PPC_LOG(info) << "Reading map...";
-		file >> map;
-		PPC_LOG(info) << "Map read(height = " << map.height() << ", width = " << map.width() << ")";
-	}
-
-
-	PPC_LOG(info) << "Getting started...";
-	std::this_thread::sleep_for(std::chrono::seconds{ 5 });
-	world.barrier();	//TODO: necessary?
 
 	auto workers = world.split(world.rank() != 1);
 	PPC_LOG(info) << "Workers communicator initialized.";
@@ -135,7 +89,6 @@ int main()
 		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
 		auto location = locationMaster.run(map);
 		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
-		ppc::mpi::broadcast(workers, ppc::dummy<ppc::PatternGrowth>, 0);
 	}
 	else if (world.rank() == 1)
 	{
@@ -148,6 +101,6 @@ int main()
 		auto location = locationWorker.run(map);
 	}
 
-	PPC_LOG(info) << "Shutting down..." << std::endl;
+	PPC_LOG(info) << "Shutting down...";
 	
 }

@@ -19,7 +19,7 @@ namespace ppc
 	private:
 		std::pair<query_result, Pattern> initialQuery(Direction initialDirection);
 		query_result query(boost::optional<Direction> direction = {});
-		index_pair computeFinalLocation(const index_pair& patternPosition);
+		index_pair computeFinalLocation(const index_pair& patternPosition, const index_type height, const index_type width);
 		const bool validateSolution(const index_pair& finalLocation);
 
 
