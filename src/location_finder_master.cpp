@@ -123,6 +123,8 @@ namespace ppc
 
 	index_pair LocationFinderMaster::run(const Map& map)
 	{
+		PPC_LOG(info) << "Location finder master started.";
+
 		const auto numOfWorkers = m_workers.size() - 1;
 		assert(numOfWorkers >= 1);
 		PPC_LOG(info) << "Number of workers available for the location finding phase: " << numOfWorkers;
