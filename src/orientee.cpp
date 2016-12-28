@@ -82,6 +82,7 @@ namespace ppc
 				orientation = combine_directions(orientation, moveDirection);
 				position = get_position(position, orientation);
 				assert(map[position.second][position.first] != CLIFF);
+				PPC_LOG(debug) << "Position updated: " << to_string(position);
 			}
 
 			if (tag & tags::QUERY)

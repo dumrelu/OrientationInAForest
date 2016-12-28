@@ -26,8 +26,14 @@ print("Image height: " + str(height))
 print("Image width: " + str(width))
 
 with open(mapName, "wt") as file:
-    file.write(str(height) + " " + str(width) + "\n")
+    # + 2 for an added CLIFF border
+    file.write(str(height + 2) + " " + str(width + 2) + "\n")
+
+    for x in range(0, width + 2): file.write('C')
+    file.write('\n')
+
     for y in range(0, height):
+        file.write('C')
         for x in range(0, width):
             pixel = image.getpixel((x, y))
             if pixel == openColor:
@@ -38,4 +44,6 @@ with open(mapName, "wt") as file:
                 file.write('T')
             else:
                 file.write('C')
-        file.write('\n')
+        file.write('C\n')
+
+    for x in range(0, width + 2): file.write('C')
