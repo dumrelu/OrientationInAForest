@@ -11,7 +11,7 @@ namespace ppc
 		Orientee(mpi::communicator orientee);
 
 		//! Returns the final position.
-		index_pair run(const Map& map);
+		path run(const Map& map);
 
 	private:
 		mpi::communicator m_orientee;

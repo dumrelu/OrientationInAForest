@@ -93,7 +93,13 @@ int main(int argc, char *argv[])
 	else if (world.rank() == 1)
 	{
 		ppc::Orientee orientee{ orienteeComm };
-		orientee.run(map);
+		ppc::path path = orientee.run(map);
+
+		std::ofstream pathFile{ "path.path" };
+		for (const auto& point : path)
+		{
+			pathFile << point.first << " " << point.second << "\n";
+		}
 	}
 	else
 	{

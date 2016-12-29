@@ -61,7 +61,7 @@ namespace ppc
 		}
 	}
 
-	index_pair Orientee::run(const Map& map)
+	path Orientee::run(const Map& map)
 	{
 		auto position = find_random_position(map);
 		PPC_LOG(info) << "Chosen starting position: " << to_string(position);
@@ -69,6 +69,8 @@ namespace ppc
 		Direction orientation = find_random_direction();
 		PPC_LOG(info) << "Chosen starting orientation: " << orientation;
 
+		path p;
+		p.push_back(position);
 		auto tag = 0;
 		do
 		{
@@ -83,6 +85,7 @@ namespace ppc
 				position = get_position(position, orientation);
 				assert(map[position.second][position.first] != CLIFF);
 				PPC_LOG(debug) << "Position updated: " << to_string(position);
+				p.push_back(position);
 			}
 
 			if (tag & tags::QUERY)
@@ -102,6 +105,6 @@ namespace ppc
 			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];
 		} while (!(tag & tags::STOP));
 
-		return {};
+		return p;
 	}
 }
