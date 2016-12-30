@@ -9,7 +9,7 @@ namespace ppc
 	{
 	}
 
-	void PathFinder::run(const Map& map, const Area& area)
+	void PathFinder::run(const Map& map, const Area& area, boost::optional<index_pair> startingPosition)
 	{
 		if (area.height == 0 || area.width == 0)
 		{
@@ -82,15 +82,6 @@ namespace ppc
 					row[x] = { -1, 0 };
 				}
 			}
-		}
-
-		for (const auto& row : table)
-		{
-			for (const auto& pair : row)
-			{
-				std::cout << std::setw(5) << "(" << pair.first << "," << static_cast<int>(pair.second) << ")";
-			}
-			std::endl(std::cout);
 		}
 	}
 }
