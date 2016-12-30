@@ -10,7 +10,7 @@ namespace ppc
 	public:
 		Orientee(mpi::communicator orientee);
 
-		//! Returns the final position.
+		//! Returns the path taken.
 		path run(const Map& map);
 
 	private:

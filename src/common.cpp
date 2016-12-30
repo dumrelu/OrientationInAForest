@@ -17,6 +17,11 @@ namespace ppc
 				area.height = main.height - (numOfAreas - 1) * numOfRowsPerArea;
 			}
 
+			if (area.y + area.height > main.height)
+			{
+				area.height = 0;
+			}
+
 			areas.push_back(std::move(area));
 		}
 

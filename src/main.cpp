@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
 	PPC_LOG(info) << "Reading the map...";
 	ppc::Map map;
 	inputFile >> map;
+	PPC_LOG(info) << "Map read(height=" << map.height() << ", width=" << map.width() << ").";
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;

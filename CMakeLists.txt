@@ -45,8 +45,8 @@ add_subdirectory(forest)
 
 
 # Main executable
-set(ORIENTATION_HEADER_FILES include/common.hpp include/location_finder_master.hpp include/location_finder_worker.hpp include/orientee.hpp)
-set(ORIENTATION_SOURCE_FILES src/main.cpp src/location_finder_master.cpp src/location_finder_worker.cpp src/orientee.cpp src/common.cpp)
+set(ORIENTATION_HEADER_FILES include/common.hpp include/location_finder_master.hpp include/location_finder_worker.hpp include/orientee.hpp include/path_finder.hpp)
+set(ORIENTATION_SOURCE_FILES src/main.cpp src/location_finder_master.cpp src/location_finder_worker.cpp src/orientee.cpp src/common.cpp src/path_finder.cpp)
 
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${MPI_CXX_INCLUDE_PATH})
