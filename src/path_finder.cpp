@@ -26,15 +26,15 @@ namespace ppc
 		std::vector<std::vector<std::pair<int, std::int8_t>>> table{ area.height,{ area.width, std::make_pair(0, 0) } };
 		for (auto x = 0u; x < area.width; ++x)
 		{
-			table[0][x].first = isPassable(x, 0) ? 0 : -1;
+			table[area.height - 1][x].first = isPassable(x, 0) ? 0 : -1;
 		}
 
-		for (auto y = 1u; y < area.height; ++y)
+		for (auto y = static_cast<int>(area.height - 2); y >= 0; --y)
 		{
 			for (auto x = 0u; x < area.width; ++x)
 			{
 				auto& row = table[y];
-				const auto& prev = table[y - 1];
+				const auto& prev = table[y + 1];
 
 				if (!isPassable(x, y))
 				{
@@ -82,6 +82,15 @@ namespace ppc
 					row[x] = { -1, 0 };
 				}
 			}
+		}
+
+		for (const auto& row : table)
+		{
+			for (const auto& pair : row)
+			{
+				std::cout << std::setw(5) << "(" << pair.first << "," << static_cast<int>(pair.second) << ")";
+			}
+			std::endl(std::cout);
 		}
 	}
 }
