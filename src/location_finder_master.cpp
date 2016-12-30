@@ -17,29 +17,6 @@ namespace ppc
 
 	namespace
 	{
-		//! For now splitting is done only vertically.
-		auto split(const Map& map, index_type numOfAreas)
-		{
-			std::vector<Area> areas;
-			areas.reserve(numOfAreas + 1);	// + 1 so it can be used for scatter
-			areas.push_back({});			//master doesn't need an area
-
-			const auto numOfRowsPerArea = static_cast<index_type>(std::ceil(map.height() / static_cast<double>(numOfAreas)));
-			PPC_LOG(debug) << "Number of rows per area: " << numOfRowsPerArea;
-			for (index_type i = 0; i < numOfAreas; ++i)
-			{
-				auto area = Area{ 0, i * numOfRowsPerArea, numOfRowsPerArea, map.width() };
-				if (i == numOfAreas - 1)
-				{
-					area.height = map.height() - (numOfAreas - 1) * numOfRowsPerArea;
-				}
-
-				areas.push_back(std::move(area));
-			}
-
-			return areas;
-		}
-
 		auto find_next_direction(const query_result& result)
 		{
 			for (const auto dir : { FORWARD, LEFT, RIGHT, BACKWARDS })
@@ -145,7 +122,8 @@ namespace ppc
 		assert(numOfWorkers >= 1);
 		PPC_LOG(info) << "Number of workers available for the location finding phase: " << numOfWorkers;
 
-		auto areas = split(map, numOfWorkers);
+		auto areas = split({ 0, 0, map.height(), map.width() }, numOfWorkers);
+		areas.insert(areas.cbegin(), Area{});	//Add an empty area at the begining for the master
 		assert(areas.size() == static_cast<decltype(areas.size())>(numOfWorkers + 1));
 		mpi::scatter(m_workers, areas, areas.front(), 0);
 

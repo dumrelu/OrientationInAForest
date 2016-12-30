@@ -138,6 +138,9 @@ namespace ppc
 		return position;
 	}
 
+	//! Splits the given area vertically into numOfAreas areas.
+	std::vector<Area> split(const Area& main, const index_type numOfAreas);
+
 	//! Holds the process world id in printable form.
 	extern std::string g_worldID;
 }
