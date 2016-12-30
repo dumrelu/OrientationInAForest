@@ -23,12 +23,12 @@ namespace ppc
 			return result;
 		}
 
-		auto find_random_position(const Map& map)
+		auto find_random_position(const Map& map, boost::optional<index_pair> startingPosition)
 		{
 			std::random_device rd;
 			std::default_random_engine engine{ rd() };
-			std::uniform_int_distribution<> xDistribution{ 0, static_cast<int>(map.width()) };
-			std::uniform_int_distribution<> yDistribution{ 0, static_cast<int>(map.height()) };
+			std::uniform_int_distribution<> xDistribution{ 0, static_cast<int>(map.width() - 1) };
+			std::uniform_int_distribution<> yDistribution{ 0, static_cast<int>(map.height() - 1) };
 
 			index_pair position;
 			auto isPositionValid = [&]()
@@ -37,10 +37,15 @@ namespace ppc
 				return zone == ROAD || zone == OPEN;
 			};
 
-			do
+			if (startingPosition)
+			{
+				position = *startingPosition;
+			}
+
+			while (!isPositionValid())
 			{
 				position = { xDistribution(engine), yDistribution(engine) };
-			} while (!isPositionValid());
+			}
 
 			return position;
 		}
@@ -61,12 +66,12 @@ namespace ppc
 		}
 	}
 
-	path Orientee::run(const Map& map)
+	path Orientee::run(const Map& map, boost::optional<index_pair> startingPosition, boost::optional<Direction> startingDirection)
 	{
-		auto position = find_random_position(map);
+		auto position = find_random_position(map, startingPosition);
 		PPC_LOG(info) << "Chosen starting position: " << to_string(position);
 
-		Direction orientation = find_random_direction();
+		Direction orientation = startingDirection ? *startingDirection : find_random_direction();
 		PPC_LOG(info) << "Chosen starting orientation: " << orientation;
 
 		path p;

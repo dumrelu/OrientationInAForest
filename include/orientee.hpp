@@ -11,7 +11,7 @@ namespace ppc
 		Orientee(mpi::communicator orientee);
 
 		//! Returns the path taken.
-		path run(const Map& map);
+		path run(const Map& map, boost::optional<index_pair> startingPosition = {}, boost::optional<Direction> startingDirection = {});
 
 	private:
 		mpi::communicator m_orientee;
