@@ -73,6 +73,9 @@ namespace ppc
 	//! Used to send a new pattern which includes the grouth direction.
 	using PatternGrowth = std::pair<Pattern, Direction>;
 
+	//! The result type for location finding.
+	using LocationOrientationPair = std::pair<index_pair, Direction>;
+
 #pragma warning(push)	//VS implementation limitation warning
 #pragma warning(disable : 4592)
 

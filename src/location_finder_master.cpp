@@ -112,9 +112,18 @@ namespace ppc
 		{
 			return static_cast<const std::ostringstream&>(std::ostringstream{} << "( x = " << pair.first << ", y = " << pair.second << " )").str();
 		}
+
+		auto compute_final_orientation(Direction orientation, int rotationCount)
+		{
+			for (; rotationCount; --rotationCount)
+			{
+				orientation = combine_directions(orientation, LEFT);
+			}
+			return orientation;
+		}
 	}
 
-	index_pair LocationFinderMaster::run(const Map& map)
+	LocationOrientationPair LocationFinderMaster::run(const Map& map)
 	{
 		PPC_LOG(info) << "Location finder master started.";
 
@@ -164,8 +173,8 @@ namespace ppc
 		PPC_LOG(info) << "Preparing to shutdown the workers...";
 		mpi::broadcast(m_workers, dummy<PatternGrowth>, 0);
 
-		auto finalLocation = computeFinalLocation(patternPosition, pattern.height, pattern.width);
-		const auto isCorrect = validateSolution(finalLocation);
+		auto solution = computeSolution(patternPosition, pattern.height, pattern.width, orientation);
+		const auto isCorrect = validateSolution(solution);
 		if (isCorrect)
 		{
 			PPC_LOG(info) << "The identified solution is valid!";
@@ -176,9 +185,9 @@ namespace ppc
 			assert(false);
 		}
 
-		mpi::broadcast(m_workers, finalLocation, 0);
+		mpi::broadcast(m_workers, solution, 0);
 
-		return finalLocation;
+		return solution;
 	}
 
 	std::pair<query_result, Pattern> LocationFinderMaster::initialQuery(Direction initialDirection)
@@ -223,7 +232,7 @@ namespace ppc
 		return result;
 	}
 
-	index_pair LocationFinderMaster::computeFinalLocation(const index_pair& patternPosition, const index_type height, const index_type width)
+	LocationOrientationPair LocationFinderMaster::computeSolution(const index_pair& patternPosition, const index_type height, const index_type width, Direction orientation)
 	{
 		index_pair matchedPatternLocation;
 		auto status = m_workers.recv(mpi::any_source, mpi::any_tag, matchedPatternLocation);
@@ -234,23 +243,28 @@ namespace ppc
 		PPC_LOG(info) << "The pattern was rotated by worker#" << status.source() << " " << rotationCount << " times.";
 
 		auto rotatedPatternPosition = rotate_position(patternPosition, rotationCount, height, width);
-		index_pair finalLocation{ matchedPatternLocation.first + rotatedPatternPosition.first,
+		const index_pair finalLocation{ matchedPatternLocation.first + rotatedPatternPosition.first,
 			matchedPatternLocation.second + rotatedPatternPosition.second
 		};
 		PPC_LOG(info) << "Computed final location: " << to_string(finalLocation);
 
-		return finalLocation;
+		//TODO: orientation
+		const auto finalOrientation = compute_final_orientation(orientation, rotationCount);
+		PPC_LOG(info) << "Compute final orientation: " << finalOrientation;
+
+		return { finalLocation, finalOrientation };
 	}
 
-	const bool LocationFinderMaster::validateSolution(const index_pair& finalLocation)
+	const bool LocationFinderMaster::validateSolution(const LocationOrientationPair& solution)
 	{
 		PPC_LOG(info) << "Validiating solution...";
 
-		index_pair realLocation;
+		LocationOrientationPair realSolution;
 		m_orientee.send(1, tags::VERIFY, dummy<Direction>);
-		m_orientee.recv(mpi::any_source, mpi::any_tag, realLocation);
-		PPC_LOG(info) << "Received real location: " << to_string(realLocation);
+		m_orientee.recv(mpi::any_source, mpi::any_tag, realSolution);
+		PPC_LOG(info) << "Received real location: " << to_string(realSolution.first);
+		PPC_LOG(info) << "Received real orientation: " << realSolution.second;
 
-		return finalLocation == realLocation;
+		return solution == realSolution;
 	}
 }

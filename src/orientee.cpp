@@ -103,8 +103,9 @@ namespace ppc
 
 			if (tag & tags::VERIFY)
 			{
-				PPC_LOG(trace) << "Sending position for validation...";
-				m_orientee.send(status.source(), tags::OK, position);
+				PPC_LOG(trace) << "Sending position and orientation for validation...";
+				LocationOrientationPair solution{ position, orientation };
+				m_orientee.send(status.source(), tags::OK, solution);
 			}
 
 			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];

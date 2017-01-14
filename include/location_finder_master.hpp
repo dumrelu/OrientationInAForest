@@ -14,13 +14,13 @@ namespace ppc
 	public:
 		LocationFinderMaster(mpi::communicator workers, mpi::communicator orientee);
 
-		index_pair run(const Map& map);
+		LocationOrientationPair run(const Map& map);
 
 	private:
 		std::pair<query_result, Pattern> initialQuery(Direction initialDirection);
 		query_result query(boost::optional<Direction> direction = {});
-		index_pair computeFinalLocation(const index_pair& patternPosition, const index_type height, const index_type width);
-		const bool validateSolution(const index_pair& finalLocation);
+		LocationOrientationPair computeSolution(const index_pair& patternPosition, const index_type height, const index_type width, Direction orientation);
+		const bool validateSolution(const LocationOrientationPair& solution);
 
 
 		mpi::communicator m_workers;

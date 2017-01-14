@@ -29,7 +29,7 @@ namespace ppc
 		}
 	}
 
-	index_pair LocationFinderWorker::run(const Map& map)
+	LocationOrientationPair LocationFinderWorker::run(const Map& map)
 	{
 		PPC_LOG(info) << "Location finder worker #" << m_workers.rank() << " started.";
 
@@ -158,7 +158,7 @@ namespace ppc
 			m_workers.send(0, tags::OK, static_cast<int>(matchIt - prevMatches.cbegin()));
 		}
 
-		index_pair finalLocation;
+		LocationOrientationPair finalLocation;
 		mpi::broadcast(m_workers, finalLocation, 0);
 		PPC_LOG(info) << "Received final location. Work done.";
 
