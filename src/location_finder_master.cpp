@@ -185,6 +185,7 @@ namespace ppc
 		{
 			PPC_LOG(info) << "The identified solution is invalid!";
 			assert(false);
+			solution = { {}, {} };
 		}
 
 		mpi::broadcast(m_workers, solution, 0);
