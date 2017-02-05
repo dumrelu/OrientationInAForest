@@ -22,7 +22,7 @@
 std::string ppc::g_worldID;
 
 void init_logger();
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, const bool log);
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
 	ppc::Map map;
 	boost::optional<ppc::index_pair> startingPosition;
 	boost::optional<ppc::Direction> startingDirection;
+	bool randomize = false;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -46,7 +47,7 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, world.rank() == 0))
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -63,7 +64,7 @@ int main(int argc, char *argv[])
 	if (world.rank() == 0)
 	{
 		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
-		locationSolution = locationMaster.run(map);
+		locationSolution = locationMaster.run(map, randomize);
 	}
 	else if (world.rank() == 1)
 	{
@@ -121,7 +122,7 @@ void init_logger()
 #endif
 }
 
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, const bool log)
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log)
 {
 	namespace po = boost::program_options;
 
@@ -131,7 +132,8 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		("map,m", po::value<std::string>(), "The name of the file containing the map")
 		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
-		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)");
+		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
+		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -212,6 +214,23 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		{
 			PPC_LOG(fatal) << "Invalid direction";
 			return false;
+		}
+	}
+
+	if (vm.count("random"))
+	{
+		randomize = true;
+		if (log)
+		{
+			PPC_LOG(info) << "Randomization is on";
+		}
+	}
+	else
+	{
+		randomize = false;
+		if (log)
+		{
+			PPC_LOG(info) << "Randomization is off";
 		}
 	}
 

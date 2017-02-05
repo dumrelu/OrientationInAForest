@@ -17,9 +17,17 @@ namespace ppc
 
 	namespace
 	{
-		auto find_next_direction(const query_result& result)
+		auto find_next_direction(const query_result& result, const bool useRandom)
 		{
-			for (const auto dir : { FORWARD, LEFT, RIGHT, BACKWARDS })
+			static std::default_random_engine g_randomEngine{ std::random_device{}() };
+
+			std::array<Direction, 4> directions = { FORWARD, LEFT, RIGHT, BACKWARDS };
+			if (useRandom)
+			{
+				std::shuffle(directions.begin() + 1, directions.begin() + 3, g_randomEngine);
+			}
+
+			for (const auto dir : directions)
 			{
 				if (result[dir] == OPEN || result[dir] == ROAD)
 				{
@@ -117,7 +125,7 @@ namespace ppc
 		}
 	}
 
-	LocationOrientationPair LocationFinderMaster::run(const Map& map)
+	LocationOrientationPair LocationFinderMaster::run(const Map& map, const bool randomized)
 	{
 		PPC_LOG(info) << "Location finder master started.";
 
@@ -155,7 +163,7 @@ namespace ppc
 			}
 			else
 			{
-				auto moveDirection = find_next_direction(queryResult);
+				auto moveDirection = find_next_direction(queryResult, randomized);
 				queryResult = query(moveDirection);
 
 				orientation = combine_directions(orientation, moveDirection);

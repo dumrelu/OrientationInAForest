@@ -14,7 +14,7 @@ namespace ppc
 	public:
 		LocationFinderMaster(mpi::communicator workers, mpi::communicator orientee);
 
-		LocationOrientationPair run(const Map& map);
+		LocationOrientationPair run(const Map& map, const bool randomized);
 
 	private:
 		std::pair<query_result, Pattern> initialQuery(Direction initialDirection);
@@ -25,7 +25,5 @@ namespace ppc
 
 		mpi::communicator m_workers;
 		mpi::communicator m_orientee;
-
-		std::default_random_engine m_engine;
 	};
 }
