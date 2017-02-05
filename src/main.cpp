@@ -22,7 +22,7 @@
 std::string ppc::g_worldID;
 
 void init_logger();
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, const bool log);
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, float& splitFactor, const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
@@ -35,6 +35,7 @@ int main(int argc, char *argv[])
 	boost::optional<ppc::Direction> startingDirection;
 	bool randomize = false;
 	bool pathFiding = false;
+	float splitFactor = 0.0f;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, world.rank() == 0))
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -120,7 +121,16 @@ int main(int argc, char *argv[])
 		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
 		PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
 
-		const auto areas = ppc::split({ startX, startingY, requiredY - startingY + 1, width }, numOfWorkers);
+		ppc::Area mainArea{ startX, startingY, requiredY - startingY + 1, width };
+		std::vector<ppc::Area> areas;
+		if (splitFactor != 0.0f)
+		{
+			areas = ppc::factor_split(mainArea, numOfWorkers, splitFactor);
+		}
+		else
+		{
+			areas = ppc::split(mainArea, numOfWorkers);
+		}
 		
 		ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
 		if (workerID == 0u)
@@ -177,19 +187,23 @@ void init_logger()
 #endif
 }
 
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, const bool log)
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, 
+	boost::optional<ppc::Direction>& startingDirection, 
+	bool& randomize, bool& pathFinding, float& splitFactor, 
+	const bool log)
 {
 	namespace po = boost::program_options;
 
 	po::options_description desc{ "Orientation In A Forst program options" };
 	desc.add_options()
 		("help,h", "Prints instructions on how to use the program")
-		("map,m", po::value<std::string>(), "The name of the file containing the map")
-		("pathfinding,p", "After finding the location, find the way to the bottom side of the map")
+		("map,m", po::value<std::string>(), "The name of the file containing the map. This is a required argument")
+		("path_finding,p", "After finding the location, find the way to the bottom side of the map")
 		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
-		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)");
+		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)")
+		("split_factor,f", po::value<float>(), "Factor used to when splitting the area for path finding(has to be 0 < factor < 1)");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -284,13 +298,9 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	else
 	{
 		randomize = false;
-		if (log)
-		{
-			PPC_LOG(info) << "Randomization is off";
-		}
 	}
 
-	if (vm.count("pathfinding"))
+	if (vm.count("path_finding"))
 	{
 		pathFinding = true;
 		if (log)
@@ -301,10 +311,28 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	else
 	{
 		pathFinding = false;
+	}
+
+	if (vm.count("split_factor"))
+	{
+		const auto factor = vm["split_factor"].as<float>();
+		if (factor <= 0 || factor >= 1)
+		{
+			if (log)
+			{
+				PPC_LOG(fatal) << "Invalid split factor! Use --help for more information.";
+			}
+			return false;
+		}
+		splitFactor = factor;
 		if (log)
 		{
-			PPC_LOG(info) << "Pathfinding if off";
+			PPC_LOG(info) << "Split factor used: " << splitFactor;
 		}
+	}
+	else
+	{
+		splitFactor = 0.0f;
 	}
 
 	return true;

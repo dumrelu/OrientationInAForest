@@ -165,6 +165,19 @@ namespace ppc
 	//! Splits the given area vertically into numOfAreas areas.
 	std::vector<Area> split(const Area& main, const index_type numOfAreas);
 
+	//! Splits the given area so that the last row has n * factor, the element before the last
+	//one has (n - n * factor) * factor, etc. Where n is the number of rows.
+	
+	//! Splits the given area unevenly into numOfAreas areas, so that the last element area
+	//has the most number of elements.
+	/*
+		Factor is a positive real number so that 0 < factor < 1.
+		Let n be the number of rows. Splitting is done by first taking an area of (n * factor) rows, 
+	then another one of ((n - n * factor) * factor) rows, etc.
+		It is guaranteed that the resulting areas satisfy: area[0].height <= area[1].height <= ... <= area[numOfAreas-1].height.
+	*/
+	std::vector<Area> factor_split(const Area& main, const index_type numOfAreas, const float factor);
+
 	//! Holds the process world id in printable form.
 	extern std::string g_worldID;
 }
