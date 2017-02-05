@@ -40,6 +40,11 @@ namespace ppc
 			if (startingPosition)
 			{
 				position = *startingPosition;
+
+				if (!isPositionValid())
+				{
+					PPC_LOG(info) << "Starting position is not valid! Searching for another one...";
+				}
 			}
 
 			while (!isPositionValid())

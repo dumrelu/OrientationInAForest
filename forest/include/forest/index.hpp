@@ -17,14 +17,28 @@ namespace ppc
 	//! Unsigned integral type used as an index.
 	using index_type = std::size_t;
 
-	//! Index pair(x, y).
-	using index_pair = std::pair<index_type, index_type>;
-
-	//! Debug purpose output stream operator.
-	//TODO: for some reason this doesn't work...
-	/*static std::ostream& operator<<(std::ostream& out, const index_pair& indexPair)
+	//! Can't overload operator<< because it's in namespace std.
+	namespace detail
 	{
-		out << "( x = " << indexPair.first << ", y = " << indexPair.second << " )";
-		return out;
-	}*/
+		struct StdPair : std::pair<index_type, index_type>
+		{
+			using std::pair<index_type, index_type>::pair;
+
+		private:
+			friend class boost::serialization::access;
+
+			template <typename Archive>
+			void serialize(Archive& ar, const unsigned int /*version*/)
+			{
+				ar & first;
+				ar & second;
+			}
+		};
+
+		//! Debug purpose output stream operator.
+		std::ostream& operator<<(std::ostream& out, const StdPair& pair);
+	}
+
+	//! Index pair(x, y).
+	using index_pair = detail::StdPair;
 }

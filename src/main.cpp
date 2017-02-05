@@ -17,9 +17,77 @@
 #include "orientee.hpp"
 #include "path_finder.hpp"
 
+#include <boost/program_options.hpp>
+
 std::string ppc::g_worldID;
 
+void init_logger();
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log);
+bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
+void write_path(const ppc::path& path, const std::string& filename);
+
 int main(int argc, char *argv[])
+{
+	init_logger();
+
+	ppc::Map map;
+	boost::optional<ppc::index_pair> startingPosition;
+	boost::optional<ppc::Direction> startingDirection;
+	bool randomize = false;
+
+	ppc::mpi::environment environment;
+	ppc::mpi::communicator world;
+	ppc::mpi::communicator workersComm;
+	ppc::mpi::communicator orienteeComm;
+	if (!init_mpi(world, workersComm, orienteeComm))
+	{
+		PPC_LOG(info) << "Program is shutting down...";
+		return 1;
+	}
+
+	try
+	{
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, world.rank() == 0))
+		{
+			PPC_LOG(info) << "Program is shutting down...";
+			return 1;
+		}
+	}
+	catch (const std::exception& e)
+	{
+		PPC_LOG(fatal) << "Parsing error: " << e.what();
+		return 1;
+	}
+
+	//Find the current location.
+	ppc::LocationOrientationPair locationSolution;
+	if (world.rank() == 0)
+	{
+		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
+		locationSolution = locationMaster.run(map, randomize);
+	}
+	else if (world.rank() == 1)
+	{
+		ppc::Orientee orientee{ orienteeComm };
+		ppc::path path = orientee.run(map, startingPosition, startingDirection);
+
+		write_path(path, "path.path");
+	}
+	else
+	{
+		ppc::LocationFinderWorker locationWorker{ workersComm };
+		locationSolution = locationWorker.run(map);
+	}
+
+	if (world.rank() == 0)
+	{
+		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+	}
+
+	PPC_LOG(info) << "Shutting down...";
+}
+
+void init_logger()
 {
 	//http://www.boost.org/doc/libs/1_54_0/libs/log/doc/html/boost/log/add_console_lo_idp21543664.html
 	namespace logging = boost::log;
@@ -52,107 +120,158 @@ int main(int argc, char *argv[])
 		logging::trivial::severity >= logging::trivial::info
 	);
 #endif
+}
 
-	if (argc < 2)
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log)
+{
+	namespace po = boost::program_options;
+
+	po::options_description desc{ "Orientation In A Forst program options" };
+	desc.add_options()
+		("help,h", "Prints instructions on how to use the program")
+		("map,m", po::value<std::string>(), "The name of the file containing the map")
+		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
+		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
+		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
+		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)");
+
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
+	po::notify(vm);
+
+	if (vm.count("help") && log)
 	{
-		PPC_LOG(fatal) << "The program requires an input map as its first argument.";
-		return 1;
+		std::cout << desc << std::endl;
+		return false;
 	}
 
-	std::ifstream inputFile{ argv[1] };
-	if (!inputFile)
+	if (vm.count("map"))
 	{
-		PPC_LOG(fatal) << "Invalid map filename(" << argv[1] << ").";
-		return 1;
-	}
-
-	boost::optional<ppc::index_pair> startingPos;
-	if (argc >= 4)
-	{
-		ppc::index_pair pos{};
-		pos.first = std::stoi(argv[2]);
-		pos.second = std::stoi(argv[3]);
-
-		startingPos = pos;
-	}
-
-	boost::optional<ppc::Direction> startingDirection;
-	if (argc >= 5)
-	{
-		int asInteger = std::stoi(argv[4]);
-		if (asInteger >= 0 && asInteger <= 3)
+		auto mapFilename = vm["map"].as<std::string>();
+		std::ifstream inputFile{ mapFilename };
+		if (inputFile)
 		{
-			startingDirection = static_cast<ppc::Direction>(asInteger);
+			if (log)
+			{
+				PPC_LOG(info) << "Reading the map...";
+			}
+			inputFile >> map;
+
+			if (log)
+			{
+				PPC_LOG(info) << "Map successfully read. Map height: " << map.height() << ", Map width: " << map.width() << ".";
+			}
 		}
-	}
-
-	PPC_LOG(info) << "Reading the map...";
-	ppc::Map map;
-	inputFile >> map;
-	PPC_LOG(info) << "Map read(height=" << map.height() << ", width=" << map.width() << ").";
-
-	ppc::mpi::environment environment;
-	ppc::mpi::communicator world;
-
-	ppc::g_worldID = "World#" + std::to_string(world.rank()) + ": ";
-	PPC_LOG(info) << "World initialized(" << world.size() << " processes).";
-	assert(world.size() >= 3);
-
-	auto workers = world.split(world.rank() != 1);
-	PPC_LOG(info) << "Workers communicator initialized.";
-
-	auto orienteeComm = world.split(world.rank() <= 1);
-	PPC_LOG(info) << "Orientee communicator initialized.";
-
-	world.barrier();
-
-	ppc::LocationOrientationPair solution;
-	if (world.rank() == 0)
-	{
-		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
-		solution = locationMaster.run(map);
-	}
-	else if (world.rank() == 1)
-	{
-		ppc::Orientee orientee{ orienteeComm };
-		ppc::path path = orientee.run(map, startingPos, startingDirection);
-
-		std::ofstream pathFile{ "path.path" };
-		for (const auto& point : path)
+		else
 		{
-			pathFile << point.first << " " << point.second << "\n";
+			if (log)
+			{
+				PPC_LOG(fatal) << "Invalid map file(" << mapFilename << ").";
+			}
+			return false;
 		}
 	}
 	else
 	{
-		ppc::LocationFinderWorker locationWorker{ workers };
-		solution = locationWorker.run(map);
+		if (log)
+		{
+			PPC_LOG(fatal) << "Map filename is required! Use --help for more information.";
+		}
+		return false;
 	}
 
-	//location = { 3, 1 };
-	if (world.rank() == 0 && solution.first.second < map.height() - 2)	//TODO: (world.rank() != 1
+	if (vm.count("startingX") ^ vm.count("startingY"))
 	{
-		const auto areas = ppc::split({ 1, solution.first.second + 1, map.height() - 2 - solution.first.second - 1, map.width() - 2 }, 1);	//TODO: world.size() - 1
-		const auto workerID = static_cast<ppc::index_type>(world.rank() == 0 ? 0 : world.rank() - 1);
-		const auto myArea = areas[workerID];
-		const auto numOfWorkers = static_cast<ppc::index_type>(std::count_if(areas.cbegin(), areas.cend(), [](const ppc::Area& area) { return area.height != 0; }));
+		PPC_LOG(fatal) << "You have to specify both x and y if you want to set the starting position.";
+		return false;
+	}
 
-		ppc::PathFinder pathFinder{ workers, orienteeComm, workerID, numOfWorkers };
-		if (world.rank() == 0)
+	if (vm.count("startingX"))
+	{
+		const auto x = vm["startingX"].as<ppc::index_type>();
+		const auto y = vm["startingY"].as<ppc::index_type>();
+
+		ppc::index_pair pos{ x, y };
+		startingPosition = pos;
+		if (log)
 		{
-			pathFinder.run(map, myArea, solution );
+			PPC_LOG(info) << "Starting position overriden: " << pos << ".";
+		}
+	}
+
+	if (vm.count("direction"))
+	{
+		const auto asInteger = vm["direction"].as<int>();
+		if (asInteger >= 0 && asInteger <= 3)
+		{
+			startingDirection = static_cast<ppc::Direction>(asInteger);
+			if (log)
+			{
+				PPC_LOG(info) << "Starting direction overriden: " << *startingDirection;
+			}
 		}
 		else
 		{
-			pathFinder.run(map, myArea);
+			PPC_LOG(fatal) << "Invalid direction";
+			return false;
 		}
 	}
 
-	if (world.rank() == 0)
+	if (vm.count("random"))
 	{
-		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+		randomize = true;
+		if (log)
+		{
+			PPC_LOG(info) << "Randomization is on";
+		}
+	}
+	else
+	{
+		randomize = false;
+		if (log)
+		{
+			PPC_LOG(info) << "Randomization is off";
+		}
 	}
 
-	PPC_LOG(info) << "Shutting down...";
-	
+	return true;
+}
+
+bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm)
+{
+	PPC_LOG(info) << "Initializing mpi...";
+
+	ppc::g_worldID = "World#" + std::to_string(world.rank()) + ": ";
+	PPC_LOG(info) << "World initialized! World size: " << world.size();
+	if (world.size() < 3)
+	{
+		PPC_LOG(fatal) << "The program requires at least 3 processes.";
+		return false;
+	}
+
+	workersComm = world.split(world.rank() != 1);
+	PPC_LOG(info) << "Workers communicator initialized!";
+
+	orienteeComm = world.split(world.rank() <= 1);
+	PPC_LOG(info) << "Orientee communicator initialized.";
+
+	world.barrier();
+	PPC_LOG(info) << "Program starting!";
+
+	return true;
+}
+
+void write_path(const ppc::path& path, const std::string& filename)
+{
+	std::ofstream pathFile{ filename };
+	if (!pathFile)
+	{
+		PPC_LOG(fatal) << "Cannot write path file(" << filename << ")";
+		return;
+	}
+
+	for (const auto& point : path)
+	{
+		pathFile << point.first << " " << point.second << "\n";
+	}
 }
