@@ -45,6 +45,10 @@ namespace ppc
 				{
 					PPC_LOG(info) << "Starting position is not valid! Searching for another one...";
 				}
+				else
+				{
+					PPC_LOG(info) << "Given starting position is valid!";
+				}
 			}
 
 			while (!isPositionValid())
@@ -93,7 +97,7 @@ namespace ppc
 			{
 				orientation = combine_directions(orientation, moveDirection);
 				position = get_position(position, orientation);
-				assert(map[position.second][position.first] != CLIFF);
+				assert(map[position.second][position.first] & OPEN | ROAD);
 				PPC_LOG(debug) << "Position updated: " << to_string(position);
 				p.push_back(position);
 			}

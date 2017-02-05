@@ -65,13 +65,17 @@ int main(int argc, char *argv[])
 	{
 		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
 		locationSolution = locationMaster.run(map, randomize);
+
+		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+		orienteeComm.send(1, 0, locationSolution);
 	}
 	else if (world.rank() == 1)
 	{
 		ppc::Orientee orientee{ orienteeComm };
 		ppc::path path = orientee.run(map, startingPosition, startingDirection);
+		orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, locationSolution);
 
-		write_path(path, "path.path");
+		write_path(path, "location_finding.path");
 	}
 	else
 	{
@@ -79,9 +83,52 @@ int main(int argc, char *argv[])
 		locationSolution = locationWorker.run(map);
 	}
 
-	if (world.rank() == 0)
+	const auto location = locationSolution.first;
+	const auto orientation = locationSolution.second;
+	if (world.rank() != 1 && location.first == 0 && location.second == 0)
 	{
-		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+		return 1;
+	}
+
+	//Path finding
+	world.barrier();
+	const auto startingY = location.second + 1;
+	const auto requiredY = map.height() - 3;	//-2 for the border, - 1 for 0 indexing
+
+	if (world.rank() == 1)
+	{
+		//Recreate the orientee to use the world communicator and to start from
+		//the previous state.
+		ppc::Orientee orientee{ world };
+		auto path = orientee.run(map, location, orientation);
+
+		write_path(path, "path_finding.path");
+	}
+
+	if (world.rank() != 1 && location.second < requiredY)
+	{
+		const auto startX = 1;	//+1 for the border
+		const auto width = map.width() - 2;	//+2 for the border
+		const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
+		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
+		PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
+
+		const auto areas = ppc::split({ startX, startingY, requiredY - startingY + 1, width }, numOfWorkers);
+		
+		ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
+		if (workerID == 0u)
+		{
+			pathFinder.run(map, areas[workerID], locationSolution);
+		}
+		else
+		{
+			pathFinder.run(map, areas[workerID]);
+		}
+	}
+
+	if (world.rank() == world.size() - 1)
+	{
+		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 	}
 
 	PPC_LOG(info) << "Shutting down...";
@@ -108,7 +155,7 @@ void init_logger()
 	);
 	logging::add_file_log(
 		keywords::file_name = "sample_%N.log",
-		keywords::rotation_size = 10 * 1024 * 1024,
+		keywords::rotation_size = 100 * 1024 * 1024,
 		keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
 		keywords::format = format
 	);

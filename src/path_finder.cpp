@@ -204,61 +204,40 @@ namespace ppc
 			m_workers.recv(mpi::any_source, mpi::any_tag, currentOrientation);
 		}
 
-		PPC_LOG(info) << "Starting location: " << to_string(index_pair{ area.x + startX, area.y });
+		PPC_LOG(info) << "Starting location: " << to_string(index_pair{ startX, area.y - 1 });
 		PPC_LOG(info) << "Searching for an entering location...";
 		auto auxiliaryRow = create_auxiliary_row(isPassable, area.width, startX);
 		MinOffsetCompare compare{ map, area, table[0], 0 };
 		auto entranceX = find_entrance_point(auxiliaryRow, table[0], compare);
-		PPC_LOG(info) << "Entrance found: " << to_string(index_pair{ area.x + entranceX, area.y });
+		PPC_LOG(info) << "Entrance found: " << to_string(index_pair{ entranceX, area.y });
 
 
 		//Move to entrance
 		auto currentX = startX;
 		auto offsetX = currentX < entranceX? 1 : -1;
-		PPC_LOG(info) << "Moving to entrance";
+		PPC_LOG(info) << "Moving to entrance. Starting pos = " << index_pair{ startX, area.y - 1 };
 		for (; currentX != entranceX; currentX += offsetX)
 		{
 			currentOrientation = moveTo(currentOrientation, { offsetX, 0 });
-
-			LocationOrientationPair realSolution;
-			m_orientee.send(1, tags::VERIFY, dummy<Direction>);
-			m_orientee.recv(mpi::any_source, mpi::any_tag, realSolution);
-			PPC_LOG(info) << currentX << ", " << entranceX << ": Received real location: " << to_string(realSolution.first);
+			PPC_LOG(info) << "Current pos = " << index_pair{ currentX + offsetX, area.y - 1 };
 		}
 
-		PPC_LOG(info) << "Moving down";
+		PPC_LOG(info) << "Moving down. Starting pos = " << index_pair{ currentX, area.y - 1 };
 		for (auto i = 0u; i < area.height; ++i)
 		{
 			auto xOffset = table[i][currentX].second;
 			currentX += xOffset;
 			currentOrientation = moveTo(currentOrientation, { xOffset, 1 });
-			LocationOrientationPair realSolution;
-			m_orientee.send(1, tags::VERIFY, dummy<Direction>);
-			m_orientee.recv(mpi::any_source, mpi::any_tag, realSolution);
-			PPC_LOG(info) << i << "/" << area.height << ": Received real location: " << to_string(realSolution.first);
+			PPC_LOG(info) << "Current pos = " << index_pair{ currentX, area.y + i };
 		}
 
 
-		LocationOrientationPair realSolution;
-		m_orientee.send(1, tags::VERIFY, dummy<Direction>);
-		m_orientee.recv(mpi::any_source, mpi::any_tag, realSolution);
-		PPC_LOG(info) << "Received real location: " << to_string(realSolution.first);
-		PPC_LOG(info) << "Received real orientation: " << realSolution.second;
-
-		//TODO: a "move" method to send the Direction to the orientee
-		/*m_orientee.send(1, tags::MOVE, index_pair{ area.x + startX, area.y });
-		for (auto y = 0; y < area.height; ++y)
+		if (m_workerID != m_numOfWorkers - 1)
 		{
-			startX += table[y][startX].second;
-
-			index_pair location{ area.x + startX, area.y + y };
-			m_orientee.send(1, tags::MOVE, location);
-		}*/
-
-		/*if (m_workerID != m_numOfWorkers - 1)
-		{
-			m_workers.send(m_workerID + 1, 0, startX);
-		}*/
+			PPC_LOG(info) << "Sending current x and current orientation forward...";
+			m_workers.send(m_workerID + 1, 0, currentX);
+			m_workers.send(m_workerID + 1, 0, currentOrientation);
+		}
 	}
 
 	namespace
@@ -282,10 +261,14 @@ namespace ppc
 			currentOrientation = moveDir;
 		}
 		 
-		auto moveDir = BACKWARDS;
-		auto realDir = ensure_direction(currentOrientation, moveDir);
-		m_orientee.send(1, tags::MOVE, realDir);
+		if (offsetY != 0)
+		{
+			auto moveDir = BACKWARDS;
+			auto realDir = ensure_direction(currentOrientation, moveDir);
+			m_orientee.send(1, tags::MOVE, realDir);
+			currentOrientation = moveDir;
+		}
 
-		return moveDir;
+		return currentOrientation;
 	}
 }
