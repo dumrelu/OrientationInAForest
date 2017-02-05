@@ -22,7 +22,7 @@
 std::string ppc::g_worldID;
 
 void init_logger();
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log);
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
 	boost::optional<ppc::index_pair> startingPosition;
 	boost::optional<ppc::Direction> startingDirection;
 	bool randomize = false;
+	bool pathFiding = false;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -47,7 +48,7 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, world.rank() == 0))
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -88,6 +89,12 @@ int main(int argc, char *argv[])
 	if (world.rank() != 1 && location.first == 0 && location.second == 0)
 	{
 		return 1;
+	}
+
+	if (!pathFiding)
+	{
+		PPC_LOG(info) << "Shutting down...";
+		return 0;
 	}
 
 	//Path finding
@@ -132,6 +139,7 @@ int main(int argc, char *argv[])
 	}
 
 	PPC_LOG(info) << "Shutting down...";
+	return 0;
 }
 
 void init_logger()
@@ -169,7 +177,7 @@ void init_logger()
 #endif
 }
 
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, const bool log)
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, const bool log)
 {
 	namespace po = boost::program_options;
 
@@ -177,6 +185,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	desc.add_options()
 		("help,h", "Prints instructions on how to use the program")
 		("map,m", po::value<std::string>(), "The name of the file containing the map")
+		("pathfinding,p", "After finding the location, find the way to the bottom side of the map")
 		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
@@ -278,6 +287,23 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		if (log)
 		{
 			PPC_LOG(info) << "Randomization is off";
+		}
+	}
+
+	if (vm.count("pathfinding"))
+	{
+		pathFinding = true;
+		if (log)
+		{
+			PPC_LOG(info) << "Pathfinding is on";
+		}
+	}
+	else
+	{
+		pathFinding = false;
+		if (log)
+		{
+			PPC_LOG(info) << "Pathfinding if off";
 		}
 	}
 
