@@ -21,15 +21,13 @@
 
 std::string ppc::g_worldID;
 
-void init_logger();
+void init_logger(const int rank);
 bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, float& splitFactor, const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
 int main(int argc, char *argv[])
 {
-	init_logger();
-
 	ppc::Map map;
 	boost::optional<ppc::index_pair> startingPosition;
 	boost::optional<ppc::Direction> startingDirection;
@@ -41,6 +39,9 @@ int main(int argc, char *argv[])
 	ppc::mpi::communicator world;
 	ppc::mpi::communicator workersComm;
 	ppc::mpi::communicator orienteeComm;
+
+	init_logger(world.rank());
+
 	if (!init_mpi(world, workersComm, orienteeComm))
 	{
 		PPC_LOG(info) << "Program is shutting down...";
@@ -152,7 +153,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void init_logger()
+void init_logger(const int rank)
 {
 	//http://www.boost.org/doc/libs/1_54_0/libs/log/doc/html/boost/log/add_console_lo_idp21543664.html
 	namespace logging = boost::log;
@@ -172,8 +173,8 @@ void init_logger()
 		keywords::auto_flush = true
 	);
 	logging::add_file_log(
-		keywords::file_name = "sample_%N.log",
-		keywords::rotation_size = 100 * 1024 * 1024,
+		keywords::file_name = "process_" + std::to_string(rank) + "_log.txt",
+		keywords::rotation_size = 10 * 1024 * 1024,
 		keywords::time_based_rotation = sinks::file::rotation_at_time_point(0, 0, 0),
 		keywords::format = format
 	);
