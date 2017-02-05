@@ -129,6 +129,27 @@ namespace ppc
 		return offset;
 	}
 
+	//! Returns a direction given an offset.
+	constexpr auto get_direction(const std::pair<int, int>& offset)
+	{
+		if (offset == std::make_pair(1, 0))
+		{
+			return RIGHT;
+		}
+		else if (offset == std::make_pair(-1, 0))
+		{
+			return LEFT;
+		}
+		else if (offset == std::make_pair(0, 1))
+		{
+			return BACKWARDS;
+		}
+		else /*if (offset == std::make_pair(0, -1))*/
+		{
+			return FORWARD;
+		}
+	}
+
 	//! Returns the resulting position after moving on the given direction, starting
 	//from the given position.
 	//TODO: rename to offset_position

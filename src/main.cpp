@@ -15,6 +15,7 @@
 #include "location_finder_master.hpp"
 #include "location_finder_worker.hpp"
 #include "orientee.hpp"
+#include "path_finder.hpp"
 
 std::string ppc::g_worldID;
 
@@ -65,6 +66,26 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	boost::optional<ppc::index_pair> startingPos;
+	if (argc >= 4)
+	{
+		ppc::index_pair pos{};
+		pos.first = std::stoi(argv[2]);
+		pos.second = std::stoi(argv[3]);
+
+		startingPos = pos;
+	}
+
+	boost::optional<ppc::Direction> startingDirection;
+	if (argc >= 5)
+	{
+		int asInteger = std::stoi(argv[4]);
+		if (asInteger >= 0 && asInteger <= 3)
+		{
+			startingDirection = static_cast<ppc::Direction>(asInteger);
+		}
+	}
+
 	PPC_LOG(info) << "Reading the map...";
 	ppc::Map map;
 	inputFile >> map;
@@ -85,16 +106,16 @@ int main(int argc, char *argv[])
 
 	world.barrier();
 
+	ppc::LocationOrientationPair solution;
 	if (world.rank() == 0)
 	{
 		ppc::LocationFinderMaster locationMaster{ workers, orienteeComm };
-		auto location = locationMaster.run(map);
-		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+		solution = locationMaster.run(map);
 	}
 	else if (world.rank() == 1)
 	{
 		ppc::Orientee orientee{ orienteeComm };
-		ppc::path path = orientee.run(map);
+		ppc::path path = orientee.run(map, startingPos, startingDirection);
 
 		std::ofstream pathFile{ "path.path" };
 		for (const auto& point : path)
@@ -105,7 +126,31 @@ int main(int argc, char *argv[])
 	else
 	{
 		ppc::LocationFinderWorker locationWorker{ workers };
-		auto location = locationWorker.run(map);
+		solution = locationWorker.run(map);
+	}
+
+	//location = { 3, 1 };
+	if (world.rank() == 0 && solution.first.second < map.height() - 2)	//TODO: (world.rank() != 1
+	{
+		const auto areas = ppc::split({ 1, solution.first.second + 1, map.height() - 2 - solution.first.second - 1, map.width() - 2 }, 1);	//TODO: world.size() - 1
+		const auto workerID = static_cast<ppc::index_type>(world.rank() == 0 ? 0 : world.rank() - 1);
+		const auto myArea = areas[workerID];
+		const auto numOfWorkers = static_cast<ppc::index_type>(std::count_if(areas.cbegin(), areas.cend(), [](const ppc::Area& area) { return area.height != 0; }));
+
+		ppc::PathFinder pathFinder{ workers, orienteeComm, workerID, numOfWorkers };
+		if (world.rank() == 0)
+		{
+			pathFinder.run(map, myArea, solution );
+		}
+		else
+		{
+			pathFinder.run(map, myArea);
+		}
+	}
+
+	if (world.rank() == 0)
+	{
+		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 	}
 
 	PPC_LOG(info) << "Shutting down...";

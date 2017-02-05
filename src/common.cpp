@@ -17,7 +17,7 @@ namespace ppc
 				area.height = main.height - (numOfAreas - 1) * numOfRowsPerArea;
 			}
 
-			if (area.y + area.height > main.height)
+			if (area.y + area.height > main.y + main.height)
 			{
 				area.height = 0;
 			}

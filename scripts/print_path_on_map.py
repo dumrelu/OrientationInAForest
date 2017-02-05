@@ -1,6 +1,6 @@
 import sys
 from PIL import Image
-
+#pip install Pillow
 pathColor = (255, 255, 0)
 
 if len(sys.argv) < 4:

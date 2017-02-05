@@ -248,7 +248,6 @@ namespace ppc
 		};
 		PPC_LOG(info) << "Computed final location: " << to_string(finalLocation);
 
-		//TODO: orientation
 		const auto finalOrientation = compute_final_orientation(orientation, rotationCount);
 		PPC_LOG(info) << "Compute final orientation: " << finalOrientation;
 
