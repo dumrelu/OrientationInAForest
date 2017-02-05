@@ -17,11 +17,13 @@
 #include "orientee.hpp"
 #include "path_finder.hpp"
 
+#include <boost/program_options.hpp>
+
 std::string ppc::g_worldID;
 
 void init_logger();
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection);
-bool init_mpi(ppc::mpi::environment& environment, ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, const bool log);
+bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
 int main(int argc, char *argv[])
@@ -36,15 +38,23 @@ int main(int argc, char *argv[])
 	ppc::mpi::communicator world;
 	ppc::mpi::communicator workersComm;
 	ppc::mpi::communicator orienteeComm;
-	if (!init_mpi(environment, world, workersComm, orienteeComm))
+	if (!init_mpi(world, workersComm, orienteeComm))
 	{
 		PPC_LOG(info) << "Program is shutting down...";
 		return 1;
 	}
 
-	if (!parse_args(argc, argv, map, startingPosition, startingDirection))
+	try
 	{
-		PPC_LOG(info) << "Program is shutting down...";
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, world.rank() == 0))
+		{
+			PPC_LOG(info) << "Program is shutting down...";
+			return 1;
+		}
+	}
+	catch (const std::exception& e)
+	{
+		PPC_LOG(fatal) << "Parsing error: " << e.what();
 		return 1;
 	}
 
@@ -111,49 +121,104 @@ void init_logger()
 #endif
 }
 
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection)
+bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, const bool log)
 {
-	if (argc < 2)
+	namespace po = boost::program_options;
+
+	po::options_description desc{ "Orientation In A Forst program options" };
+	desc.add_options()
+		("help,h", "Prints instructions on how to use the program")
+		("map,m", po::value<std::string>(), "The name of the file containing the map")
+		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
+		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
+		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)");
+
+	po::variables_map vm;
+	po::store(po::parse_command_line(argc, argv, desc), vm);
+	po::notify(vm);
+
+	if (vm.count("help") && log)
 	{
-		PPC_LOG(fatal) << "The program required the map filename as its first argument.";
+		std::cout << desc << std::endl;
 		return false;
 	}
 
-	std::ifstream inputFile{ argv[1] };
-	if (inputFile)
+	if (vm.count("map"))
 	{
-		PPC_LOG(info) << "Reading the map...";
-		inputFile >> map;
-		PPC_LOG(info) << "Map successfully read. Map height: " << map.height() << ", Map width: " << map.width() << ".";
+		auto mapFilename = vm["map"].as<std::string>();
+		std::ifstream inputFile{ mapFilename };
+		if (inputFile)
+		{
+			if (log)
+			{
+				PPC_LOG(info) << "Reading the map...";
+			}
+			inputFile >> map;
+
+			if (log)
+			{
+				PPC_LOG(info) << "Map successfully read. Map height: " << map.height() << ", Map width: " << map.width() << ".";
+			}
+		}
+		else
+		{
+			if (log)
+			{
+				PPC_LOG(fatal) << "Invalid map file(" << mapFilename << ").";
+			}
+			return false;
+		}
 	}
 	else
 	{
-		PPC_LOG(fatal) << "Invalid map file(" << argv[1] << ").";
+		if (log)
+		{
+			PPC_LOG(fatal) << "Map filename is required! Use --help for more information.";
+		}
 		return false;
 	}
 
-	if (argc >= 4)
+	if (vm.count("startingX") ^ vm.count("startingY"))
 	{
-		ppc::index_pair pos{ std::stoi(argv[2]), std::stoi(argv[3]) };
-		startingPosition = pos;
-
-		PPC_LOG(info) << "Starting position overriden: " << pos << ".";
+		PPC_LOG(fatal) << "You have to specify both x and y if you want to set the starting position.";
+		return false;
 	}
 
-	if (argc >= 5)
+	if (vm.count("startingX"))
 	{
-		int asInteger = std::stoi(argv[4]);
+		const auto x = vm["startingX"].as<ppc::index_type>();
+		const auto y = vm["startingY"].as<ppc::index_type>();
+
+		ppc::index_pair pos{ x, y };
+		startingPosition = pos;
+		if (log)
+		{
+			PPC_LOG(info) << "Starting position overriden: " << pos << ".";
+		}
+	}
+
+	if (vm.count("direction"))
+	{
+		const auto asInteger = vm["direction"].as<int>();
 		if (asInteger >= 0 && asInteger <= 3)
 		{
 			startingDirection = static_cast<ppc::Direction>(asInteger);
-			PPC_LOG(info) << "Starting direction overriden: " << *startingDirection;
+			if (log)
+			{
+				PPC_LOG(info) << "Starting direction overriden: " << *startingDirection;
+			}
+		}
+		else
+		{
+			PPC_LOG(fatal) << "Invalid direction";
+			return false;
 		}
 	}
 
 	return true;
 }
 
-bool init_mpi(ppc::mpi::environment& environment, ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm)
+bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm)
 {
 	PPC_LOG(info) << "Initializing mpi...";
 
