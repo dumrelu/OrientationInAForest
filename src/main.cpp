@@ -137,7 +137,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		ppc::index_pair pos{ std::stoi(argv[2]), std::stoi(argv[3]) };
 		startingPosition = pos;
 
-		PPC_LOG(info) << "Starting position overriden: { x = " << pos.first << ", y = " << pos.second << " }.";
+		PPC_LOG(info) << "Starting position overriden: " << pos << ".";
 	}
 
 	if (argc >= 5)

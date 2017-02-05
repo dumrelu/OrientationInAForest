@@ -107,12 +107,6 @@ namespace ppc
 			return position;
 		}
 
-		//TODO: For some reason ostream << index_pair doesn't work with boost::log...
-		inline auto to_string(const index_pair& pair)
-		{
-			return static_cast<const std::ostringstream&>(std::ostringstream{} << "( x = " << pair.first << ", y = " << pair.second << " )").str();
-		}
-
 		auto compute_final_orientation(Direction orientation, int rotationCount)
 		{
 			for (; rotationCount; --rotationCount)
@@ -236,7 +230,7 @@ namespace ppc
 	{
 		index_pair matchedPatternLocation;
 		auto status = m_workers.recv(mpi::any_source, mpi::any_tag, matchedPatternLocation);
-		PPC_LOG(info) << "Received the final pattern match position from worker#" << status.source() << ": " << to_string(matchedPatternLocation);
+		PPC_LOG(info) << "Received the final pattern match position from worker#" << status.source() << ": " << matchedPatternLocation;
 
 		int rotationCount = 0;
 		status = m_workers.recv(mpi::any_source, mpi::any_tag, rotationCount);
@@ -246,7 +240,7 @@ namespace ppc
 		const index_pair finalLocation{ matchedPatternLocation.first + rotatedPatternPosition.first,
 			matchedPatternLocation.second + rotatedPatternPosition.second
 		};
-		PPC_LOG(info) << "Computed final location: " << to_string(finalLocation);
+		PPC_LOG(info) << "Computed final location: " << finalLocation;
 
 		const auto finalOrientation = compute_final_orientation(orientation, rotationCount);
 		PPC_LOG(info) << "Compute final orientation: " << finalOrientation;
@@ -261,7 +255,7 @@ namespace ppc
 		LocationOrientationPair realSolution;
 		m_orientee.send(1, tags::VERIFY, dummy<Direction>);
 		m_orientee.recv(mpi::any_source, mpi::any_tag, realSolution);
-		PPC_LOG(info) << "Received real location: " << to_string(realSolution.first);
+		PPC_LOG(info) << "Received real location: " << realSolution.first;
 		PPC_LOG(info) << "Received real orientation: " << realSolution.second;
 
 		return solution == realSolution;
