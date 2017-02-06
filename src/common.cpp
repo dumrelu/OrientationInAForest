@@ -56,4 +56,32 @@ namespace ppc
 
 		return areas;
 	}
+
+	std::ostream& operator<<(std::ostream& stream, const Statistics& stats)
+	{
+		stream << "Number of processors used: " << stats.numOfProcessors << std::endl;
+		stream << "Startup options: " << stats.startupOptions << std::endl;
+		stream << "Map size: height = " << stats.mapHeight << ", width = " << stats.mapWidth << std::endl;
+		stream << "Total run time: " << stats.totalRunTime.count() << " ms" << std::endl;
+
+		stream << "Starting location: " << stats.startingLocation << std::endl;
+		stream << "Starting orientation: " << stats.startingOrientation << std::endl;
+		stream << "Identified location: " << stats.identifiedLocation << std::endl;
+		stream << "Identified direction: " << stats.identifiedOrientation << std::endl;
+		stream << "Was the identified solution valid: " << (stats.identifiedSolutionValid ? "YES" : "NO") << std::endl;
+		stream << "Number of iterations to find the location: " << stats.numOfLocationFindingIterations << std::endl;
+		stream << "Location finding time: " << stats.locationFindingTime.count() << " ms" << std::endl;
+
+		stream << "Path finding: " << (stats.pathFinding ? "ON" : "OFF") << std::endl;
+		if (stats.pathFinding)
+		{
+			stream << "Number of iterations for path finding: " << stats.numOfPathFindingIterations << std::endl;
+			stream << "Path finding time: " << stats.pathFindingTime.count() << " ms" << std::endl;
+		}
+
+		stream << "Total number of moves: " << stats.totalNumberOfMoves << std::endl;
+		stream << "Total number of queries: " << stats.totalNumberOfQueries << std::endl;
+
+		return stream;
+	}
 }

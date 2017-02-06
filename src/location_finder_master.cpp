@@ -125,7 +125,7 @@ namespace ppc
 		}
 	}
 
-	LocationOrientationPair LocationFinderMaster::run(const Map& map, const bool randomized)
+	LocationOrientationPair LocationFinderMaster::run(const Map& map, const bool randomized, boost::optional<Statistics>& stats)
 	{
 		PPC_LOG(info) << "Location finder master started.";
 
@@ -189,6 +189,14 @@ namespace ppc
 		}
 
 		mpi::broadcast(m_workers, solution, 0);
+
+		if (stats)
+		{
+			stats->identifiedLocation = solution.first;
+			stats->identifiedOrientation = solution.second;
+			stats->identifiedSolutionValid = isCorrect;
+			stats->numOfLocationFindingIterations = numOfIterations;
+		}
 
 		return solution;
 	}

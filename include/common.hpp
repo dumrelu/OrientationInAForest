@@ -7,6 +7,7 @@
 #include "forest/pattern.hpp"
 
 #include <array>
+#include <chrono>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -43,9 +44,10 @@ namespace ppc
 		//! Tags used between the orientee and the masters.
 		enum OrienteeTags
 		{
-			QUERY = 0b001'000, 
-			MOVE  = 0b010'000, 
-			VERIFY = 0b100'000
+			QUERY  = 0b0001'000, 
+			MOVE   = 0b0010'000, 
+			VERIFY = 0b0100'000,
+			STATS  = 0b1000'000
 		};
 	}
 
@@ -161,6 +163,34 @@ namespace ppc
 
 		return position;
 	}
+
+	//! Holds statistical information, including benchmarks.
+	struct Statistics
+	{
+		index_type numOfProcessors;
+		std::string startupOptions;
+		index_type mapHeight;
+		index_type mapWidth;
+		std::chrono::milliseconds totalRunTime;
+
+		index_pair startingLocation;
+		Direction startingOrientation;
+		index_pair identifiedLocation;
+		Direction identifiedOrientation;
+		bool identifiedSolutionValid;
+		index_type numOfLocationFindingIterations;
+		std::chrono::milliseconds locationFindingTime;
+
+		bool pathFinding;
+		index_type numOfPathFindingIterations;
+		std::chrono::milliseconds pathFindingTime;
+
+		index_type totalNumberOfMoves;
+		index_type totalNumberOfQueries;
+	};
+
+	//! Writes the statistics to the given stream.
+	std::ostream& operator<<(std::ostream& stream, const Statistics& stats);
 
 	//! Splits the given area vertically into numOfAreas areas.
 	std::vector<Area> split(const Area& main, const index_type numOfAreas);

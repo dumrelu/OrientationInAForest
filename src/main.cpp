@@ -22,18 +22,24 @@
 std::string ppc::g_worldID;
 
 void init_logger(const int rank);
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, float& splitFactor, const bool log);
+bool parse_args(int argc, char* argv[], ppc::Map& map, 
+	boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection,
+	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
+	const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
 int main(int argc, char *argv[])
 {
+	const auto startTime = std::chrono::steady_clock::now();
+
 	ppc::Map map;
 	boost::optional<ppc::index_pair> startingPosition;
 	boost::optional<ppc::Direction> startingDirection;
 	bool randomize = false;
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
+	bool statistics = true;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -50,7 +56,7 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, world.rank() == 0))
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, statistics, world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -62,12 +68,31 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	//Statistics initializations
+	boost::optional<ppc::Statistics> stats;
+	if (statistics)
+	{
+		stats = ppc::Statistics{};
+	}
+
 	//Find the current location.
 	ppc::LocationOrientationPair locationSolution;
 	if (world.rank() == 0)
 	{
 		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
-		locationSolution = locationMaster.run(map, randomize);
+		locationSolution = locationMaster.run(map, randomize, stats);
+
+		if (statistics)
+		{
+			const auto locationFindingEndTime = std::chrono::steady_clock::now();
+			stats->locationFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(locationFindingEndTime - startTime);
+
+			orienteeComm.send(1, ppc::tags::STATS, ppc::dummy<ppc::Direction>);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->startingLocation);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->startingOrientation);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->totalNumberOfMoves);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->totalNumberOfQueries);
+		}
 
 		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 		orienteeComm.send(1, 0, locationSolution);
@@ -144,9 +169,61 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (world.rank() == world.size() - 1)
+	if (!statistics && world.rank() == world.size() - 1)
 	{
 		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+	}
+
+	if (statistics)
+	{
+		workersComm.barrier();
+
+		if (world.rank() == 0)
+		{
+			PPC_LOG(info) << "Gathering statistical data...";
+
+			//Run time stats.
+			const auto endTime = std::chrono::steady_clock::now();
+			stats->totalRunTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+			//Num of moves + queries stats
+			ppc::index_type additionalNumOfMoves;
+			ppc::index_type additionalNumOfQueries;
+
+			world.send(1, ppc::tags::STATS, ppc::dummy<ppc::Direction>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, ppc::dummy<ppc::index_pair>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, ppc::dummy<ppc::index_pair>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, additionalNumOfMoves);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, additionalNumOfQueries);
+
+			stats->totalNumberOfMoves += additionalNumOfMoves;
+			stats->totalNumberOfQueries += additionalNumOfQueries;
+
+			world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+
+			//Path finding stats
+			stats->pathFinding = pathFiding;
+			if (pathFiding)
+			{
+				const auto pathFindingEndTime = std::chrono::steady_clock::now();
+
+				stats->numOfPathFindingIterations = requiredY - startingY + 1;
+				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - startTime);
+			}
+
+			//Other stats
+			stats->numOfProcessors = world.size();
+			stats->mapHeight = map.height();
+			stats->mapWidth = map.width();
+			for (auto i = 1; i < argc; ++i)
+			{
+				stats->startupOptions += argv[i];
+				stats->startupOptions += " ";
+			}
+
+			std::ofstream statsFile{ "statistics.txt" };
+			statsFile << *stats;
+		}
 	}
 
 	PPC_LOG(info) << "Shutting down...";
@@ -190,7 +267,7 @@ void init_logger(const int rank)
 
 bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, 
 	boost::optional<ppc::Direction>& startingDirection, 
-	bool& randomize, bool& pathFinding, float& splitFactor, 
+	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
 	const bool log)
 {
 	namespace po = boost::program_options;
@@ -200,6 +277,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		("help,h", "Prints instructions on how to use the program")
 		("map,m", po::value<std::string>(), "The name of the file containing the map. This is a required argument")
 		("path_finding,p", "After finding the location, find the way to the bottom side of the map")
+		("statistics,s", "Gathers statistics and benchmarks")
 		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
@@ -334,6 +412,19 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	else
 	{
 		splitFactor = 0.0f;
+	}
+
+	if (vm.count("statistics"))
+	{
+		statistics = true;
+		if (log)
+		{
+			PPC_LOG(info) << "Statistics are on";
+		}
+	}
+	else
+	{
+		statistics = false;
 	}
 
 	return true;
