@@ -22,7 +22,10 @@
 std::string ppc::g_worldID;
 
 void init_logger(const int rank);
-bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection, bool& randomize, bool& pathFinding, float& splitFactor, const bool log);
+bool parse_args(int argc, char* argv[], ppc::Map& map, 
+	boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection,
+	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
+	const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
 
@@ -36,7 +39,7 @@ int main(int argc, char *argv[])
 	bool randomize = false;
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
-	bool benchmark = true;
+	bool statistics = true;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -53,7 +56,7 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, world.rank() == 0))
+		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, statistics, world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -67,7 +70,7 @@ int main(int argc, char *argv[])
 
 	//Statistics initializations
 	boost::optional<ppc::Statistics> stats;
-	if (benchmark)
+	if (statistics)
 	{
 		stats = ppc::Statistics{};
 	}
@@ -79,7 +82,7 @@ int main(int argc, char *argv[])
 		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
 		locationSolution = locationMaster.run(map, randomize, stats);
 
-		if (benchmark)
+		if (statistics)
 		{
 			const auto locationFindingEndTime = std::chrono::steady_clock::now();
 			stats->locationFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(locationFindingEndTime - startTime);
@@ -166,12 +169,12 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!benchmark && world.rank() == world.size() - 1)
+	if (!statistics && world.rank() == world.size() - 1)
 	{
 		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 	}
 
-	if (benchmark)
+	if (statistics)
 	{
 		workersComm.barrier();
 
@@ -264,7 +267,7 @@ void init_logger(const int rank)
 
 bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, 
 	boost::optional<ppc::Direction>& startingDirection, 
-	bool& randomize, bool& pathFinding, float& splitFactor, 
+	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
 	const bool log)
 {
 	namespace po = boost::program_options;
@@ -274,6 +277,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		("help,h", "Prints instructions on how to use the program")
 		("map,m", po::value<std::string>(), "The name of the file containing the map. This is a required argument")
 		("path_finding,p", "After finding the location, find the way to the bottom side of the map")
+		("statistics,s", "Gathers statistics and benchmarks")
 		("startingX,x", po::value<ppc::index_type>(), "Starting x position of the orientee")
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
@@ -408,6 +412,19 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	else
 	{
 		splitFactor = 0.0f;
+	}
+
+	if (vm.count("statistics"))
+	{
+		statistics = true;
+		if (log)
+		{
+			PPC_LOG(info) << "Statistics are on";
+		}
+	}
+	else
+	{
+		statistics = false;
 	}
 
 	return true;
