@@ -28,12 +28,15 @@ void write_path(const ppc::path& path, const std::string& filename);
 
 int main(int argc, char *argv[])
 {
+	const auto startTime = std::chrono::steady_clock::now();
+
 	ppc::Map map;
 	boost::optional<ppc::index_pair> startingPosition;
 	boost::optional<ppc::Direction> startingDirection;
 	bool randomize = false;
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
+	bool benchmark = true;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -62,12 +65,31 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	//Statistics initializations
+	boost::optional<ppc::Statistics> stats;
+	if (benchmark)
+	{
+		stats = ppc::Statistics{};
+	}
+
 	//Find the current location.
 	ppc::LocationOrientationPair locationSolution;
 	if (world.rank() == 0)
 	{
 		ppc::LocationFinderMaster locationMaster{ workersComm, orienteeComm };
-		locationSolution = locationMaster.run(map, randomize);
+		locationSolution = locationMaster.run(map, randomize, stats);
+
+		if (benchmark)
+		{
+			const auto locationFindingEndTime = std::chrono::steady_clock::now();
+			stats->locationFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(locationFindingEndTime - startTime);
+
+			orienteeComm.send(1, ppc::tags::STATS, ppc::dummy<ppc::Direction>);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->startingLocation);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->startingOrientation);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->totalNumberOfMoves);
+			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->totalNumberOfQueries);
+		}
 
 		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 		orienteeComm.send(1, 0, locationSolution);
@@ -144,9 +166,61 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (world.rank() == world.size() - 1)
+	if (!benchmark && world.rank() == world.size() - 1)
 	{
 		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+	}
+
+	if (benchmark)
+	{
+		workersComm.barrier();
+
+		if (world.rank() == 0)
+		{
+			PPC_LOG(info) << "Gathering statistical data...";
+
+			//Run time stats.
+			const auto endTime = std::chrono::steady_clock::now();
+			stats->totalRunTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+
+			//Num of moves + queries stats
+			ppc::index_type additionalNumOfMoves;
+			ppc::index_type additionalNumOfQueries;
+
+			world.send(1, ppc::tags::STATS, ppc::dummy<ppc::Direction>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, ppc::dummy<ppc::index_pair>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, ppc::dummy<ppc::index_pair>);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, additionalNumOfMoves);
+			world.recv(ppc::mpi::any_source, ppc::mpi::any_tag, additionalNumOfQueries);
+
+			stats->totalNumberOfMoves += additionalNumOfMoves;
+			stats->totalNumberOfQueries += additionalNumOfQueries;
+
+			world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+
+			//Path finding stats
+			stats->pathFinding = pathFiding;
+			if (pathFiding)
+			{
+				const auto pathFindingEndTime = std::chrono::steady_clock::now();
+
+				stats->numOfPathFindingIterations = requiredY - startingY + 1;
+				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - startTime);
+			}
+
+			//Other stats
+			stats->numOfProcessors = world.size();
+			stats->mapHeight = map.height();
+			stats->mapWidth = map.width();
+			for (auto i = 1; i < argc; ++i)
+			{
+				stats->startupOptions += argv[i];
+				stats->startupOptions += " ";
+			}
+
+			std::ofstream statsFile{ "statistics.txt" };
+			statsFile << *stats;
+		}
 	}
 
 	PPC_LOG(info) << "Shutting down...";

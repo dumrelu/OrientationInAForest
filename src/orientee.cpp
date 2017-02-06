@@ -2,6 +2,7 @@
 #include "forest/index.hpp"
 
 #include <random>
+#include <tuple>
 
 namespace ppc
 {
@@ -83,6 +84,11 @@ namespace ppc
 		Direction orientation = startingDirection ? *startingDirection : find_random_direction();
 		PPC_LOG(info) << "Chosen starting orientation: " << orientation;
 
+		const auto realStartingPosition = position;
+		const auto realStartingOrientation = orientation;
+		index_type numOfMoves = 0u;
+		index_type numOfQueries = 0u;
+
 		path p;
 		p.push_back(position);
 		auto tag = 0;
@@ -98,8 +104,10 @@ namespace ppc
 				orientation = combine_directions(orientation, moveDirection);
 				position = get_position(position, orientation);
 				assert(map[position.second][position.first] & OPEN | ROAD);
+
 				PPC_LOG(debug) << "Position updated: " << to_string(position);
 				p.push_back(position);
+				++numOfMoves;
 			}
 
 			if (tag & tags::QUERY)
@@ -108,6 +116,7 @@ namespace ppc
 				m_orientee.send(status.source(), tags::OK, result);
 
 				PPC_LOG(trace) << "Sending query result: " << result;
+				++numOfQueries;
 			}
 
 			if (tag & tags::VERIFY)
@@ -115,6 +124,15 @@ namespace ppc
 				PPC_LOG(trace) << "Sending position and orientation for validation...";
 				LocationOrientationPair solution{ position, orientation };
 				m_orientee.send(status.source(), tags::OK, solution);
+			}
+
+			if (tag & tags::STATS)
+			{
+				PPC_LOG(trace) << "Sending statistics...";
+				m_orientee.send(status.source(), tags::OK, realStartingPosition);
+				m_orientee.send(status.source(), tags::OK, realStartingOrientation);
+				m_orientee.send(status.source(), tags::OK, numOfMoves);
+				m_orientee.send(status.source(), tags::OK, numOfQueries);
 			}
 
 			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];
