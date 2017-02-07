@@ -25,7 +25,17 @@ currentDir = os.getcwd()
 outputDir = "output"
 
 if(os.path.isdir(outputDir)):
-    shutil.rmtree(outputDir, ignore_errors=True)
+    i = 2
+    while True:
+        nextOutputDir = outputDir + str(i)
+        i = i + 1
+        if not os.path.isdir(nextOutputDir):
+            outputDir = nextOutputDir
+            break
+
+
+# if(os.path.isdir(outputDir)):
+#     shutil.rmtree(outputDir, ignore_errors=True)
 os.mkdir(outputDir)
 
 def move_file(filename):
