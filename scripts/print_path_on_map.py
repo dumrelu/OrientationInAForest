@@ -21,7 +21,7 @@ print("Output filename: " + outputFilename)
 print("Path color: " + str(pathColor))
 
 map = Image.open(mapFilename)
-thickness = min(map.width, map.height) * 0.01
+thickness = min(map.width, map.height) * 0.005
 thickness = int(max(thickness, 1.0))
 print("Path thickness: " + str(thickness))
 
