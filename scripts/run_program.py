@@ -6,11 +6,21 @@ import shutil
 # Parse arguments
 numOfProcs = 0
 if len(sys.argv) < 2:
-    print("The script requires the number of processes as input.")
+    print("The script requires the number of processes and the map image as input.")
     sys.exit(1)
 numOfProcs = int(sys.argv[1])
+mapImageName = sys.argv[2]
 
-optionsList = [sys.argv[i] for i in range(2, len(sys.argv))]
+mapFilename = os.path.splitext(mapImageName)[0] + ".map"
+if os.path.isfile(mapFilename):
+    print("Map output file found")
+else:
+    print("Generating the map...")
+    if subprocess.call("python image_to_map.py " + mapImageName + " " + mapFilename):
+        print("Error while generating the map!")
+        sys.exit(1)
+
+optionsList = ["-m", mapFilename] + [sys.argv[i] for i in range(3, len(sys.argv))]
 options = ' '.join(optionsList)
 
 
@@ -24,7 +34,7 @@ subprocess.call("mpiexec -n " + str(numOfProcs) + " orientation.exe " + options)
 currentDir = os.getcwd()
 outputDir = "output"
 
-if(os.path.isdir(outputDir)):
+if os.path.isdir(outputDir):
     i = 2
     while True:
         nextOutputDir = outputDir + str(i)
@@ -39,17 +49,24 @@ if(os.path.isdir(outputDir)):
 os.mkdir(outputDir)
 
 def move_file(filename):
-    if(os.path.isfile(filename)):
+    if os.path.isfile(filename):
         os.rename(filename, outputDir + "/" + filename)
 
-locationFilename = "location_finding.path"
-pathFindingFilename = "path_finding.path"
+locationPathFilename = "location_finding.path"
+pathFindingPathFilename = "path_finding.path"
 statisticsFilename = "statistics.txt"
 logFilenames = ["process_" + str(i) + "_log.txt" for i in range(0, numOfProcs)]
+pathedMapFilename = "path_on_map" + os.path.splitext(mapImageName)[1]
+
+
+print("Writing the paths")
+subprocess.call("python print_path_on_map.py " + mapImageName + " " + locationPathFilename + " " + pathedMapFilename)
+subprocess.call("python print_path_on_map.py " + pathedMapFilename + " " + pathFindingPathFilename + " " + pathedMapFilename)
 
 print("Copying output files to the " + outputDir + " directory...")
-move_file(locationFilename)
-move_file(pathFindingFilename)
+move_file(locationPathFilename)
+move_file(pathFindingPathFilename)
 move_file(statisticsFilename)
+move_file(pathedMapFilename)
 for logFile in logFilenames:
     move_file(logFile)
