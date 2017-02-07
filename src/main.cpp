@@ -142,13 +142,13 @@ int main(int argc, char *argv[])
 
 	if (world.rank() != 1 && location.second < requiredY)
 	{
-		const auto startX = 1;	//+1 for the border
+		const auto startX = 0;	//+1 for the border
 		const auto width = map.width() - 2;	//+2 for the border
 		const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
 		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
 		PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
 
-		ppc::Area mainArea{ startX, startingY, requiredY - startingY + 1, width };
+		ppc::Area mainArea{ startX, startingY - 1, requiredY - startingY + 2, width };
 		std::vector<ppc::Area> areas;
 		if (splitFactor != 0.0f)
 		{

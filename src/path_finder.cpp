@@ -112,8 +112,9 @@ namespace ppc
 				}
 
 				compare.x(x);
-				auto minDir = std::min({ 0, -1, 1 }, compare);
-				if (minDir < 0)
+				auto minDir = std::min({ 0, -1, 1 }, compare) * -1;
+
+				if (row[x + minDir].first < 0)
 				{
 					continue;
 				}
@@ -157,7 +158,7 @@ namespace ppc
 		std::vector<TableRow> table{ area.height,{ area.width, std::make_pair(0, 0) } };
 		for (auto x = 0u; x < area.width; ++x)
 		{
-			table[area.height - 1][x].first = isPassable(x, 0) ? 0 : -1;
+			table[area.height - 1][x].first = isPassable(x, area.height - 1) ? 0 : -1;
 		}
 
 		for (auto y = static_cast<int>(area.height - 2); y >= 0; --y)
@@ -211,7 +212,6 @@ namespace ppc
 		auto entranceX = find_entrance_point(auxiliaryRow, table[0], compare);
 		PPC_LOG(info) << "Entrance found: " << to_string(index_pair{ entranceX, area.y });
 
-
 		//Move to entrance
 		auto currentX = startX;
 		auto offsetX = currentX < entranceX? 1 : -1;
@@ -222,13 +222,16 @@ namespace ppc
 			PPC_LOG(info) << "Current pos = " << index_pair{ currentX + offsetX, area.y - 1 };
 		}
 
-		PPC_LOG(info) << "Moving down. Starting pos = " << index_pair{ currentX, area.y - 1 };
-		for (auto i = 0u; i < area.height; ++i)
+		PPC_LOG(info) << "Moving down to entrace";
+		currentOrientation = moveTo(currentOrientation, { 0, 1 });
+
+		PPC_LOG(info) << "Moving down. Starting pos = " << index_pair{ currentX, area.y };
+		for (auto i = 0u; i < area.height - 1; ++i)
 		{
 			auto xOffset = table[i][currentX].second;
 			currentX += xOffset;
 			currentOrientation = moveTo(currentOrientation, { xOffset, 1 });
-			PPC_LOG(info) << "Current pos = " << index_pair{ currentX, area.y + i };
+			PPC_LOG(info) << "Current pos = " << index_pair{ currentX, area.y + i + 1};
 		}
 
 
