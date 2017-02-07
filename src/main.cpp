@@ -126,6 +126,7 @@ int main(int argc, char *argv[])
 
 	//Path finding
 	world.barrier();
+	const auto pathFindingStartTime = std::chrono::steady_clock::now();
 	const auto startingY = location.second + 1;
 	const auto requiredY = map.height() - 3;	//-2 for the border, - 1 for 0 indexing
 
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
 				const auto pathFindingEndTime = std::chrono::steady_clock::now();
 
 				stats->numOfPathFindingIterations = requiredY - startingY + 1;
-				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - startTime);
+				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - pathFindingStartTime);
 			}
 
 			//Other stats
