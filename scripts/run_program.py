@@ -60,8 +60,8 @@ pathedMapFilename = "path_on_map" + os.path.splitext(mapImageName)[1]
 
 
 print("Writing the paths")
-subprocess.call("python print_path_on_map.py " + mapImageName + " " + locationPathFilename + " " + pathedMapFilename)
-subprocess.call("python print_path_on_map.py " + pathedMapFilename + " " + pathFindingPathFilename + " " + pathedMapFilename)
+subprocess.call("python print_path_on_map.py " + mapImageName + " " + locationPathFilename + " " + pathedMapFilename + " 0 191 255")
+subprocess.call("python print_path_on_map.py " + pathedMapFilename + " " + pathFindingPathFilename + " " + pathedMapFilename + " 255 140 0")
 
 print("Copying output files to the " + outputDir + " directory...")
 move_file(locationPathFilename)
