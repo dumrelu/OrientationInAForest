@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
 	bool statistics = true;
-	ppc::PathFinder::EntranceSearching searchMethod = ppc::PathFinder::N_SEARCH;
+	ppc::PathFinder::EntranceSearching searchMethod = ppc::PathFinder::ANY_ENTRANCE;
 	int numOfSearchLocations = 5;
 
 	ppc::mpi::environment environment;
@@ -314,7 +314,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
 		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)")
 		("split_factor,f", po::value<float>(), "Factor used to when splitting the area for path finding(has to be 0 < factor < 1)")
-		("entry_method,e", po::value<int>(), "0 = Any entrance, 1 = Min table cost entrance(Default value), 2 = Search n locations")
+		("entry_method,e", po::value<int>(), "0 = Any entrance(Default value), 1 = Min table cost entrance, 2 = Search n locations")
 		("n_locations,n", po::value<int>(), "Number of entrances to be searched when using -e 2");
 
 	po::variables_map vm;
@@ -488,7 +488,7 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	}
 	else
 	{
-		searchMethod = ppc::PathFinder::MIN_ENTRANCE;
+		searchMethod = ppc::PathFinder::ANY_ENTRANCE;
 	}
 
 	if (vm.count("n_locations"))
