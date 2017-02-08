@@ -1,6 +1,11 @@
 #include "path_finder.hpp"
 
 #include <algorithm>
+#include <queue>
+#include <unordered_map>
+#include <fstream>	//TODO: remove
+
+#include <boost/functional/hash.hpp>
 
 namespace ppc
 {
@@ -141,6 +146,106 @@ namespace ppc
 		{
 			return static_cast<const std::ostringstream&>(std::ostringstream{} << "( x = " << pair.first << ", y = " << pair.second << " )").str();
 		}
+
+		auto get_neighbours(const index_pair& location, const Area& area, const ZoneValidator& isPassable)
+		{
+			std::vector<index_pair> neighbours;
+			neighbours.reserve(8);
+
+			auto xMin = location.first <= area.x ? 0 : -1;
+			auto xMax = location.first >= area.x + area.width - 1 ? 0 : 1;
+			auto yMin = location.second <= area.y ? 0 : -1;
+			auto yMax = location.second >= area.y + area.height - 1 ? 0 : 1;
+			for (auto i = xMin; i <= xMax; ++i)
+			{
+				for (auto j = yMin; j <= yMax; ++j)
+				{
+					if ( !(i == 0 && i == j) && isPassable(location.first + i, location.second + j))
+					{
+						neighbours.push_back({ location.first + i, location.second + j });
+					}
+				}
+			}
+
+			return neighbours;
+		}
+
+		inline auto get_cost(const index_pair& from, const index_pair& to)
+		{
+			if (from.first == to.first || from.second == to.second)
+			{
+				return 1;
+			}
+			return 2;
+		}
+
+		auto smart_find_entrance_point(const index_pair& start, const Map& map, const TableRow& entranceRow)
+		{
+			using PriorityPair = std::pair<index_pair, int>;
+			auto priorityCmp = [](const PriorityPair& lhs, const PriorityPair& rhs)
+			{
+				return lhs.second > rhs.second;
+			};
+
+			struct MyHash
+			{
+				const size_t operator()(const index_pair& location) const
+				{
+					std::size_t seed = 0;
+					boost::hash_combine(seed, location.first);
+					boost::hash_combine(seed, location.second);
+
+					return seed;
+				}
+			};
+
+			std::priority_queue<PriorityPair, std::vector<PriorityPair>, decltype(priorityCmp)> frontier{ priorityCmp };
+			frontier.push({ start, 0 });
+
+			std::unordered_map<index_pair, index_pair, MyHash> cameFrom;
+			cameFrom[start] = { 0, 0 };	//{ 0, 0 } will always be invalid
+
+			std::unordered_map<index_pair, int, MyHash> costSoFar;
+			costSoFar[start] = 0;
+
+			Area area{ 0, 0, start.second + 2, map.width() };
+			ZoneValidator isPassable{ map, area };
+			index_pair current{};
+			while (!frontier.empty())
+			{
+				current = frontier.top().first;
+				frontier.pop();
+
+				if (current.second == start.second + 1)
+				{
+					if (entranceRow[current.first].first >= 0)
+					{
+						break;
+					}
+				}
+
+				const auto neighbours = get_neighbours(current, area, isPassable);
+				for (const auto& neighbour : neighbours)
+				{
+					const auto newCost = costSoFar[current] + get_cost(current, neighbour);
+					if (costSoFar.find(neighbour) == costSoFar.cend() || newCost < costSoFar[neighbour])
+					{
+						costSoFar[neighbour] = newCost;
+						frontier.push({ neighbour, newCost });
+						cameFrom[neighbour] = current;
+					}
+				}
+			}
+
+			std::vector<index_pair> pathToEntrance;
+			do
+			{
+				pathToEntrance.push_back(current);
+				current = cameFrom[current];
+			} while (current != start);
+			std::reverse(pathToEntrance.begin(), pathToEntrance.end());
+			return pathToEntrance;
+		}
 	}
 
 	void PathFinder::run(const Map& map, const Area& area, boost::optional<LocationOrientationPair> locationResult)
@@ -205,25 +310,30 @@ namespace ppc
 			m_workers.recv(mpi::any_source, mpi::any_tag, currentOrientation);
 		}
 
-		PPC_LOG(info) << "Starting location: " << to_string(index_pair{ startX, area.y - 1 });
-		PPC_LOG(info) << "Searching for an entering location...";
-		auto auxiliaryRow = create_auxiliary_row(isPassable, area.width, startX);
-		MinOffsetCompare compare{ map, area, table[0], 0 };
-		auto entranceX = find_entrance_point(auxiliaryRow, table[0], compare);
-		PPC_LOG(info) << "Entrance found: " << to_string(index_pair{ entranceX, area.y });
+		const auto startingLocation = index_pair{ startX, area.y - 1 };
+		PPC_LOG(info) << "Starting location: " << startingLocation;
 
-		//Move to entrance
-		auto currentX = startX;
-		auto offsetX = currentX < entranceX? 1 : -1;
-		PPC_LOG(info) << "Moving to entrance. Starting pos = " << index_pair{ startX, area.y - 1 };
-		for (; currentX != entranceX; currentX += offsetX)
+		//TEST
+		const auto pathToEntrance = smart_find_entrance_point(startingLocation, map, table[0]);
+		PPC_LOG(info) << "Entrance found: " << pathToEntrance.back();
+
+		//Move to the entrance.
+		PPC_LOG(info) << "Moving to entrance";
+		auto currentX = startingLocation.first;
+		auto currentY = startingLocation.second;
+		for (const auto pathPoint : pathToEntrance)
 		{
-			currentOrientation = moveTo(currentOrientation, { offsetX, 0 });
-			PPC_LOG(info) << "Current pos = " << index_pair{ currentX + offsetX, area.y - 1 };
-		}
+			const auto offsets = std::make_pair(
+				static_cast<int>(pathPoint.first) - static_cast<int>(currentX),
+				static_cast<int>(pathPoint.second) - static_cast<int>(currentY)
+			);
+			currentOrientation = moveTo(currentOrientation, offsets);
+			currentX = pathPoint.first;
+			currentY = pathPoint.second;
 
-		PPC_LOG(info) << "Moving down to entrace";
-		currentOrientation = moveTo(currentOrientation, { 0, 1 });
+			PPC_LOG(info) << "Current position: " << pathPoint;
+		}
+		//
 
 		PPC_LOG(info) << "Moving down. Starting pos = " << index_pair{ currentX, area.y };
 		for (auto i = 0u; i < area.height - 1; ++i)
@@ -266,7 +376,7 @@ namespace ppc
 		 
 		if (offsetY != 0)
 		{
-			auto moveDir = BACKWARDS;
+			auto moveDir = get_direction({ 0, offsetY });
 			auto realDir = ensure_direction(currentOrientation, moveDir);
 			m_orientee.send(1, tags::MOVE, realDir);
 			currentOrientation = moveDir;
