@@ -195,7 +195,6 @@ int main(int argc, char *argv[])
 	else if (world.rank() == 0)
 	{
 		PPC_LOG(info) << "No need for path finding.";
-		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 	}
 
 	const bool isLastWorker = (numOfPathfindingWorkers > 1 && world.rank() == world.size() - 1) 
