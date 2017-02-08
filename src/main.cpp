@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 			{
 				const auto pathFindingEndTime = std::chrono::steady_clock::now();
 
-				stats->numOfPathFindingIterations = pathFindingRows;
+				stats->numOfPathFindingMoves = additionalNumOfMoves;
 				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - pathFindingStartTime);
 			}
 

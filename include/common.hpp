@@ -182,7 +182,7 @@ namespace ppc
 		std::chrono::milliseconds locationFindingTime;
 
 		bool pathFinding;
-		index_type numOfPathFindingIterations;
+		index_type numOfPathFindingMoves;
 		std::chrono::milliseconds pathFindingTime;
 
 		index_type totalNumberOfMoves;
