@@ -80,6 +80,8 @@ int main(int argc, char *argv[])
 	if (statistics)
 	{
 		stats = ppc::Statistics{};
+		const auto initializationEndTime = std::chrono::steady_clock::now();
+		stats->initializationTime = std::chrono::duration_cast<std::chrono::milliseconds>(initializationEndTime - startTime);
 	}
 
 	//Find the current location.
@@ -152,7 +154,7 @@ int main(int argc, char *argv[])
 	if (world.rank() != 1 && location.second < requiredY)
 	{
 		const auto startX = 0;
-		const auto width = map.width() - 2;	//+2 for the border
+		const auto width = map.width();	//+2 for the border
 		const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
 		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
 
@@ -213,7 +215,7 @@ int main(int argc, char *argv[])
 
 			//Run time stats.
 			const auto endTime = std::chrono::steady_clock::now();
-			stats->totalRunTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
+			stats->totalTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime);
 
 			//Num of moves + queries stats
 			ppc::index_type additionalNumOfMoves;

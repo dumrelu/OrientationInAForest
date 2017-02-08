@@ -62,7 +62,9 @@ namespace ppc
 		stream << "Number of processors used: " << stats.numOfProcessors << std::endl;
 		stream << "Startup options: " << stats.startupOptions << std::endl;
 		stream << "Map size: height = " << stats.mapHeight << ", width = " << stats.mapWidth << std::endl;
-		stream << "Total run time: " << stats.totalRunTime.count() << " ms" << std::endl;
+		stream << "Total time: " << stats.totalTime.count() << " ms" << std::endl;
+		stream << "Initialization time: " << stats.initializationTime.count() << " ms" << std::endl;
+		stream << "Total run time: " << (stats.totalTime - stats.initializationTime).count() << " ms" << std::endl;
 
 		stream << "Starting location: " << stats.startingLocation << std::endl;
 		stream << "Starting orientation: " << stats.startingOrientation << std::endl;

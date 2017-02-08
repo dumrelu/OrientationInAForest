@@ -171,7 +171,8 @@ namespace ppc
 		std::string startupOptions;
 		index_type mapHeight;
 		index_type mapWidth;
-		std::chrono::milliseconds totalRunTime;
+		std::chrono::milliseconds totalTime;
+		std::chrono::milliseconds initializationTime;
 
 		index_pair startingLocation;
 		Direction startingOrientation;
