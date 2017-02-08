@@ -355,12 +355,13 @@ namespace ppc
 			auto pathResult = smart_find_entrance_point(startingLocation, map, specificLocationValidator);
 
 			pathToEntrance = std::move(pathResult.first);
-			int minCost = pathResult.second;
+			int minCost = table[0][minTableEntry].first + pathResult.second;
 
 			auto offset = static_cast<int>(area.width / numOfSearchLocations);
 			for (auto i = area.x + offset; i < area.width; i += offset)
 			{
-				if (table[0][i].first < 0)
+				const auto tableCost = table[0][i].first;
+				if (tableCost < 0)
 				{
 					continue;
 				}
@@ -368,10 +369,11 @@ namespace ppc
 				specificLocation = { i, startingLocation.second + 1 };
 				pathResult = smart_find_entrance_point(startingLocation, map, specificLocationValidator);
 
-				if (pathResult.second < minCost)
+				const auto totalCost = tableCost + pathResult.second;
+				if (totalCost < minCost)
 				{
 					pathToEntrance = std::move(pathResult.first);
-					minCost = pathResult.second;
+					minCost = totalCost;
 				}
 			}
 		}
