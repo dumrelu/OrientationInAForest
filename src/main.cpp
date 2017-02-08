@@ -129,6 +129,7 @@ int main(int argc, char *argv[])
 	const auto pathFindingStartTime = std::chrono::steady_clock::now();
 	const auto startingY = location.second + 1;
 	const auto requiredY = map.height() - 3;	//-2 for the border, - 1 for 0 indexing
+	const auto pathFindingRows = requiredY - startingY + 2;	//TODO: come up with a better name
 
 	if (world.rank() == 1)
 	{
@@ -140,37 +141,57 @@ int main(int argc, char *argv[])
 		write_path(path, "path_finding.path");
 	}
 
+	ppc::index_type numOfPathfindingWorkers = 0;
 	if (world.rank() != 1 && location.second < requiredY)
 	{
-		const auto startX = 0;	//+1 for the border
+		const auto startX = 0;
 		const auto width = map.width() - 2;	//+2 for the border
 		const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
 		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
-		PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
 
-		ppc::Area mainArea{ startX, startingY - 1, requiredY - startingY + 2, width };
-		std::vector<ppc::Area> areas;
-		if (splitFactor != 0.0f)
-		{
-			areas = ppc::factor_split(mainArea, numOfWorkers, splitFactor);
-		}
-		else
-		{
-			areas = ppc::split(mainArea, numOfWorkers);
-		}
+		ppc::Area mainArea{ startX, startingY - 1, pathFindingRows, width };
 		
-		ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
-		if (workerID == 0u)
+		if (mainArea.height > 3 * numOfWorkers)
 		{
-			pathFinder.run(map, areas[workerID], locationSolution);
+			PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
+			numOfPathfindingWorkers = numOfWorkers;
+			std::vector<ppc::Area> areas;
+			if (splitFactor != 0.0f)
+			{
+				areas = ppc::factor_split(mainArea, numOfWorkers, splitFactor);
+			}
+			else
+			{
+				areas = ppc::split(mainArea, numOfWorkers);
+			}
+
+			ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
+			if (workerID == 0u)
+			{
+				pathFinder.run(map, areas[workerID], locationSolution);
+			}
+			else
+			{
+				pathFinder.run(map, areas[workerID]);
+			}
 		}
-		else
+		else if(world.rank() == 0)
 		{
-			pathFinder.run(map, areas[workerID]);
+			PPC_LOG(info) << "Path finding area too small. Will only use 1 worker.";
+			numOfPathfindingWorkers = 1;
+			ppc::PathFinder pathFinder{ workersComm, world, workerID, 1 };
+			pathFinder.run(map, mainArea, locationSolution);
 		}
 	}
+	else if (world.rank() == 0)
+	{
+		PPC_LOG(info) << "No need for path finding.";
+		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+	}
 
-	if (!statistics && world.rank() == world.size() - 1)
+	const bool isLastWorker = (numOfPathfindingWorkers > 1 && world.rank() == world.size() - 1) 
+		|| (numOfPathfindingWorkers == 1 && world.rank() == 0);
+	if (!statistics && isLastWorker)
 	{
 		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 	}
@@ -208,7 +229,7 @@ int main(int argc, char *argv[])
 			{
 				const auto pathFindingEndTime = std::chrono::steady_clock::now();
 
-				stats->numOfPathFindingIterations = requiredY - startingY + 1;
+				stats->numOfPathFindingIterations = pathFindingRows;
 				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - pathFindingStartTime);
 			}
 
