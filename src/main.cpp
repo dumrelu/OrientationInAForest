@@ -25,6 +25,7 @@ void init_logger(const int rank);
 bool parse_args(int argc, char* argv[], ppc::Map& map, 
 	boost::optional<ppc::index_pair>& startingPosition, boost::optional<ppc::Direction>& startingDirection,
 	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
+	ppc::PathFinder::EntranceSearching& searchMethod, int& numOfSearchLocations,
 	const bool log);
 bool init_mpi(ppc::mpi::communicator& world, ppc::mpi::communicator& workersComm, ppc::mpi::communicator& orienteeComm);
 void write_path(const ppc::path& path, const std::string& filename);
@@ -40,6 +41,8 @@ int main(int argc, char *argv[])
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
 	bool statistics = true;
+	ppc::PathFinder::EntranceSearching searchMethod = ppc::PathFinder::N_SEARCH;
+	int numOfSearchLocations = 5;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -56,7 +59,11 @@ int main(int argc, char *argv[])
 
 	try
 	{
-		if (!parse_args(argc, argv, map, startingPosition, startingDirection, randomize, pathFiding, splitFactor, statistics, world.rank() == 0))
+		if (!parse_args(argc, argv, map, 
+			startingPosition, startingDirection, 
+			randomize, pathFiding, splitFactor, statistics, 
+			searchMethod, numOfSearchLocations, 
+			world.rank() == 0))
 		{
 			PPC_LOG(info) << "Program is shutting down...";
 			return 1;
@@ -168,11 +175,11 @@ int main(int argc, char *argv[])
 			ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
 			if (workerID == 0u)
 			{
-				pathFinder.run(map, areas[workerID], locationSolution);
+				pathFinder.run(map, areas[workerID], locationSolution, searchMethod, numOfSearchLocations);
 			}
 			else
 			{
-				pathFinder.run(map, areas[workerID]);
+				pathFinder.run(map, areas[workerID], {}, searchMethod, numOfSearchLocations);
 			}
 		}
 		else if(world.rank() == 0)
@@ -180,7 +187,7 @@ int main(int argc, char *argv[])
 			PPC_LOG(info) << "Path finding area too small. Will only use 1 worker.";
 			numOfPathfindingWorkers = 1;
 			ppc::PathFinder pathFinder{ workersComm, world, workerID, 1 };
-			pathFinder.run(map, mainArea, locationSolution);
+			pathFinder.run(map, mainArea, locationSolution, searchMethod, numOfSearchLocations);
 		}
 	}
 	else if (world.rank() == 0)
@@ -229,7 +236,7 @@ int main(int argc, char *argv[])
 			{
 				const auto pathFindingEndTime = std::chrono::steady_clock::now();
 
-				stats->numOfPathFindingIterations = pathFindingRows;
+				stats->numOfPathFindingMoves = additionalNumOfMoves;
 				stats->pathFindingTime = std::chrono::duration_cast<std::chrono::milliseconds>(pathFindingEndTime - pathFindingStartTime);
 			}
 
@@ -290,11 +297,12 @@ void init_logger(const int rank)
 bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::index_pair>& startingPosition, 
 	boost::optional<ppc::Direction>& startingDirection, 
 	bool& randomize, bool& pathFinding, float& splitFactor, bool& statistics, 
+	ppc::PathFinder::EntranceSearching& searchMethod, int& numOfSearchLocations,
 	const bool log)
 {
 	namespace po = boost::program_options;
 
-	po::options_description desc{ "Orientation In A Forst program options" };
+	po::options_description desc{ "Orientation In A Forest program options" };
 	desc.add_options()
 		("help,h", "Prints instructions on how to use the program")
 		("map,m", po::value<std::string>(), "The name of the file containing the map. This is a required argument")
@@ -304,15 +312,20 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		("startingY,y", po::value<ppc::index_type>(), "Starting y position of the orientee")
 		("direction,d", po::value<int>(), "Starting orientation of the orientee(FORWARD=0, RIGHT=1, BACKWARDS=2, LEFT=3)")
 		("random,r", "Indicates that the algorithm is allowed to use randomization in some areas, to guarantee a solution(if it exists)")
-		("split_factor,f", po::value<float>(), "Factor used to when splitting the area for path finding(has to be 0 < factor < 1)");
+		("split_factor,f", po::value<float>(), "Factor used to when splitting the area for path finding(has to be 0 < factor < 1)")
+		("entry_method,e", po::value<int>(), "0 = Any entrance, 1 = Min table cost entrance(Default value), 2 = Search n locations")
+		("n_locations,n", po::value<int>(), "Number of entrances to be searched when using -e 2");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
 	po::notify(vm);
 
-	if (vm.count("help") && log)
+	if (vm.count("help"))
 	{
-		std::cout << desc << std::endl;
+		if (log)
+		{
+			std::cout << desc << std::endl;
+		}
 		return false;
 	}
 
@@ -383,7 +396,10 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 		}
 		else
 		{
-			PPC_LOG(fatal) << "Invalid direction";
+			if (log)
+			{
+				PPC_LOG(fatal) << "Invalid direction";
+			}
 			return false;
 		}
 	}
@@ -447,6 +463,52 @@ bool parse_args(int argc, char* argv[], ppc::Map& map, boost::optional<ppc::inde
 	else
 	{
 		statistics = false;
+	}
+
+	if (vm.count("entry_method"))
+	{
+		const auto asInteger = vm["entry_method"].as<int>();
+		if (asInteger >= 0 && asInteger <= 2)
+		{
+			searchMethod = static_cast<ppc::PathFinder::EntranceSearching>(asInteger);
+			if (log)
+			{
+				PPC_LOG(info) << "Entry method: " << searchMethod;
+			}
+		}
+		else
+		{
+			if (log)
+			{
+				PPC_LOG(fatal) << "Invalid entrance method";
+			}
+			return false;
+		}
+	}
+	else
+	{
+		searchMethod = ppc::PathFinder::MIN_ENTRANCE;
+	}
+
+	if (vm.count("n_locations"))
+	{
+		numOfSearchLocations = vm["n_locations"].as<int>();
+		if (numOfSearchLocations <= 0)
+		{
+			if (log)
+			{
+				PPC_LOG(fatal) << "n_locations taks as input a positive integer > 1";
+			}
+			return false;
+		}
+	}
+	else if (searchMethod == ppc::PathFinder::N_SEARCH)
+	{
+		if (log)
+		{
+			PPC_LOG(fatal) << "To use N_SEARCH you also need to give the n_locations options";
+		}
+		return false;
 	}
 
 	return true;

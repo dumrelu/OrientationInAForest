@@ -75,7 +75,7 @@ namespace ppc
 		stream << "Path finding: " << (stats.pathFinding ? "ON" : "OFF") << std::endl;
 		if (stats.pathFinding)
 		{
-			stream << "Number of iterations for path finding: " << stats.numOfPathFindingIterations << std::endl;
+			stream << "Number of moves for path finding: " << stats.numOfPathFindingMoves << std::endl;
 			stream << "Path finding time: " << stats.pathFindingTime.count() << " ms" << std::endl;
 		}
 
