@@ -12,18 +12,14 @@ if len(sys.argv) < 3:
 minNumOfProcs = int(sys.argv[1])
 maxNumOfProcs = int(sys.argv[2])
 
+increment = 1
+if len(sys.argv) >= 4:
+    increment = int(sys.argv[3])
+
 tests = [
     {
         'map_name': 'medium_map.png', 
-        'options': '-p -s -x 179 -y 995 -d 1 -e 1'
-    }, 
-    {
-        'map_name': 'medium_map.png', 
-        'options': '-p -s -x 179 -y 995 -d 1 -e 0'
-    }, 
-    {
-        'map_name': 'medium_map.png', 
-        'options': '-p -s -x 179 -y 995 -d 1 -e 1'
+        'options': '-p -s -x 494 -y 959 -d 1'
     }
 ]
 
@@ -41,7 +37,7 @@ def get_test_name(test, procs):
     return 'output_' + test['map_name']  + '_' + str(procs) +  '_'.join(test['options'].split(' '))
 
 print('Running ' + str(len(tests)) + ' tests...')
-for procs in range(minNumOfProcs, maxNumOfProcs + 1):
+for procs in range(minNumOfProcs, maxNumOfProcs + 1, increment):
     print('Running tests for ' + str(procs) + ' processes')
     for test in tests:
         mapName = test['map_name']
