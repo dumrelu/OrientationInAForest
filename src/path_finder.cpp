@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <queue>
 #include <unordered_map>
-#include <fstream>	//TODO: remove
+#include <functional>
 
 #include <boost/functional/hash.hpp>
 
@@ -179,7 +179,7 @@ namespace ppc
 			return 2;
 		}
 
-		auto smart_find_entrance_point(const index_pair& start, const Map& map, const TableRow& entranceRow)
+		auto smart_find_entrance_point(const index_pair& start, const Map& map, std::function<bool(const index_pair& location)> locationValidator)
 		{
 			using PriorityPair = std::pair<index_pair, int>;
 			auto priorityCmp = [](const PriorityPair& lhs, const PriorityPair& rhs)
@@ -216,12 +216,9 @@ namespace ppc
 				current = frontier.top().first;
 				frontier.pop();
 
-				if (current.second == start.second + 1)
+				if (locationValidator(current))
 				{
-					if (entranceRow[current.first].first >= 0)
-					{
-						break;
-					}
+					break;
 				}
 
 				const auto neighbours = get_neighbours(current, area, isPassable);
@@ -238,17 +235,18 @@ namespace ppc
 			}
 
 			std::vector<index_pair> pathToEntrance;
+			const auto cost = costSoFar[current];
 			do
 			{
 				pathToEntrance.push_back(current);
 				current = cameFrom[current];
 			} while (current != start);
 			std::reverse(pathToEntrance.begin(), pathToEntrance.end());
-			return pathToEntrance;
+			return std::make_pair(std::move(pathToEntrance), cost);
 		}
 	}
 
-	void PathFinder::run(const Map& map, const Area& area, boost::optional<LocationOrientationPair> locationResult)
+	void PathFinder::run(const Map& map, const Area& area, boost::optional<LocationOrientationPair> locationResult, EntranceSearching searching, int numOfSearchLocations)
 	{
 		if (area.height == 0 || area.width == 0)
 		{
@@ -294,8 +292,24 @@ namespace ppc
 			}
 		}
 		PPC_LOG(info) << "Pathing table for the area computed.";
-
-		
+		int minTableEntry = 0;
+		{
+			auto minIt = std::min_element(table[0].cbegin(), table[0].cend(), 
+				[](const std::pair<int, std::int8_t>& lhs, const std::pair<int, std::int8_t>& rhs)
+				{
+					if(lhs.first < 0)
+					{
+						return false;
+					}
+					else if (rhs.first < 0)
+					{
+						return true;
+					}
+					return lhs.first < rhs.first;
+				}
+			);
+			minTableEntry = static_cast<int>(minIt - table[0].cbegin());
+		}
 
 		index_type startX;
 		auto currentOrientation = BACKWARDS;
@@ -313,8 +327,54 @@ namespace ppc
 		const auto startingLocation = index_pair{ startX, area.y - 1 };
 		PPC_LOG(info) << "Starting location: " << startingLocation;
 
-		//TEST
-		const auto pathToEntrance = smart_find_entrance_point(startingLocation, map, table[0]);
+		//Finding the entrance
+		auto anyLocationValidator = [&startingLocation, &table](const index_pair& location)	//Find the first valid entrance point
+		{
+			return location.second == startingLocation.second + 1 && table[0][location.first].first >= 0;
+		};
+
+		index_pair specificLocation{};
+		auto specificLocationValidator = [&specificLocation](const index_pair& location)
+		{
+			return location == specificLocation;
+		};
+
+		std::vector<index_pair> pathToEntrance;
+		if (searching == ANY_ENTRANCE)
+		{
+			pathToEntrance = smart_find_entrance_point(startingLocation, map, anyLocationValidator).first;
+		}
+		else if (searching == MIN_ENTRANCE)
+		{
+			specificLocation = { minTableEntry, startingLocation.second + 1 };
+			pathToEntrance = smart_find_entrance_point(startingLocation, map, specificLocationValidator).first;
+		}
+		else if (searching == N_SEARCH)
+		{
+			specificLocation = { minTableEntry, startingLocation.second + 1 };
+			auto pathResult = smart_find_entrance_point(startingLocation, map, specificLocationValidator);
+
+			pathToEntrance = std::move(pathResult.first);
+			int minCost = pathResult.second;
+
+			auto offset = static_cast<int>(area.width / numOfSearchLocations);
+			for (auto i = area.x + offset; i < area.width; i += offset)
+			{
+				if (table[0][i].first < 0)
+				{
+					continue;
+				}
+
+				specificLocation = { i, startingLocation.second + 1 };
+				pathResult = smart_find_entrance_point(startingLocation, map, specificLocationValidator);
+
+				if (pathResult.second < minCost)
+				{
+					pathToEntrance = std::move(pathResult.first);
+					minCost = pathResult.second;
+				}
+			}
+		}
 		PPC_LOG(info) << "Entrance found: " << pathToEntrance.back();
 
 		//Move to the entrance.

@@ -40,6 +40,8 @@ int main(int argc, char *argv[])
 	bool pathFiding = false;
 	float splitFactor = 0.0f;
 	bool statistics = true;
+	ppc::PathFinder::EntranceSearching searchMethod = ppc::PathFinder::N_SEARCH;
+	int numOfSearchLocation = 50;
 
 	ppc::mpi::environment environment;
 	ppc::mpi::communicator world;
@@ -168,11 +170,11 @@ int main(int argc, char *argv[])
 			ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
 			if (workerID == 0u)
 			{
-				pathFinder.run(map, areas[workerID], locationSolution);
+				pathFinder.run(map, areas[workerID], locationSolution, searchMethod, numOfSearchLocation);
 			}
 			else
 			{
-				pathFinder.run(map, areas[workerID]);
+				pathFinder.run(map, areas[workerID], {}, searchMethod, numOfSearchLocation);
 			}
 		}
 		else if(world.rank() == 0)
@@ -180,7 +182,7 @@ int main(int argc, char *argv[])
 			PPC_LOG(info) << "Path finding area too small. Will only use 1 worker.";
 			numOfPathfindingWorkers = 1;
 			ppc::PathFinder pathFinder{ workersComm, world, workerID, 1 };
-			pathFinder.run(map, mainArea, locationSolution);
+			pathFinder.run(map, mainArea, locationSolution, searchMethod, numOfSearchLocation);
 		}
 	}
 	else if (world.rank() == 0)
