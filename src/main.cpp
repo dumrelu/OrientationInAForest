@@ -56,6 +56,7 @@ int main(int argc, char *argv[])
 		PPC_LOG(info) << "Program is shutting down...";
 		return 1;
 	}
+	orienteeComm = world;
 
 	try
 	{
@@ -103,8 +104,12 @@ int main(int argc, char *argv[])
 			orienteeComm.recv(ppc::mpi::any_source, ppc::mpi::any_tag, stats->totalNumberOfQueries);
 		}
 
-		orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
-		orienteeComm.send(1, 0, locationSolution);
+		const bool shouldNotStop = !pathFiding && statistics;
+		if (!shouldNotStop)
+		{
+			orienteeComm.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+			orienteeComm.send(1, 0, locationSolution);
+		}
 	}
 	else if (world.rank() == 1)
 	{
@@ -127,84 +132,82 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (!pathFiding)
+	decltype(std::chrono::steady_clock::now()) pathFindingStartTime;
+	if (pathFiding)
 	{
-		PPC_LOG(info) << "Shutting down...";
-		return 0;
-	}
+		//Path finding
+		world.barrier();
+		pathFindingStartTime = std::chrono::steady_clock::now();
+		const auto startingY = location.second + 1;
+		const auto requiredY = map.height() - 3;	//-2 for the border, - 1 for 0 indexing
+		const auto pathFindingRows = requiredY - startingY + 2;	//TODO: come up with a better name
 
-	//Path finding
-	world.barrier();
-	const auto pathFindingStartTime = std::chrono::steady_clock::now();
-	const auto startingY = location.second + 1;
-	const auto requiredY = map.height() - 3;	//-2 for the border, - 1 for 0 indexing
-	const auto pathFindingRows = requiredY - startingY + 2;	//TODO: come up with a better name
-
-	if (world.rank() == 1)
-	{
-		//Recreate the orientee to use the world communicator and to start from
-		//the previous state.
-		ppc::Orientee orientee{ world };
-		auto path = orientee.run(map, location, orientation);
-
-		write_path(path, "path_finding.path");
-	}
-
-	ppc::index_type numOfPathfindingWorkers = 0;
-	if (world.rank() != 1 && location.second < requiredY)
-	{
-		const auto startX = 0;
-		const auto width = map.width();	//+2 for the border
-		const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
-		const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
-
-		ppc::Area mainArea{ startX, startingY - 1, pathFindingRows, width };
-		
-		if (mainArea.height > 3 * numOfWorkers)
+		if (world.rank() == 1)
 		{
-			PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
-			numOfPathfindingWorkers = numOfWorkers;
-			std::vector<ppc::Area> areas;
-			if (splitFactor != 0.0f)
-			{
-				areas = ppc::factor_split(mainArea, numOfWorkers, splitFactor);
-			}
-			else
-			{
-				areas = ppc::split(mainArea, numOfWorkers);
-			}
+			//Recreate the orientee to use the world communicator and to start from
+			//the previous state.
+			ppc::Orientee orientee{ world };
+			auto path = orientee.run(map, location, orientation);
 
-			ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
-			if (workerID == 0u)
+			write_path(path, "path_finding.path");
+		}
+
+		ppc::index_type numOfPathfindingWorkers = 0;
+		if (world.rank() != 1 && location.second < requiredY)
+		{
+			const auto startX = 0;
+			const auto width = map.width();	//+2 for the border
+			const auto numOfWorkers = static_cast<ppc::index_type>(workersComm.size());
+			const auto workerID = static_cast<ppc::index_type>(workersComm.rank());
+
+			ppc::Area mainArea{ startX, startingY - 1, pathFindingRows, width };
+
+			if (mainArea.height > 3 * numOfWorkers)
 			{
-				pathFinder.run(map, areas[workerID], locationSolution, searchMethod, numOfSearchLocations);
+				PPC_LOG(info) << "Starting pathfinding with " << numOfWorkers << " workers";
+				numOfPathfindingWorkers = numOfWorkers;
+				std::vector<ppc::Area> areas;
+				if (splitFactor != 0.0f)
+				{
+					areas = ppc::factor_split(mainArea, numOfWorkers, splitFactor);
+				}
+				else
+				{
+					areas = ppc::split(mainArea, numOfWorkers);
+				}
+
+				ppc::PathFinder pathFinder{ workersComm, world, workerID, numOfWorkers };
+				if (workerID == 0u)
+				{
+					pathFinder.run(map, areas[workerID], locationSolution, searchMethod, numOfSearchLocations);
+				}
+				else
+				{
+					pathFinder.run(map, areas[workerID], {}, searchMethod, numOfSearchLocations);
+				}
 			}
-			else
+			else if (world.rank() == 0)
 			{
-				pathFinder.run(map, areas[workerID], {}, searchMethod, numOfSearchLocations);
+				PPC_LOG(info) << "Path finding area too small. Will only use 1 worker.";
+				numOfPathfindingWorkers = 1;
+				ppc::PathFinder pathFinder{ workersComm, world, workerID, 1 };
+				pathFinder.run(map, mainArea, locationSolution, searchMethod, numOfSearchLocations);
 			}
 		}
-		else if(world.rank() == 0)
+		else if (world.rank() == 0)
 		{
-			PPC_LOG(info) << "Path finding area too small. Will only use 1 worker.";
-			numOfPathfindingWorkers = 1;
-			ppc::PathFinder pathFinder{ workersComm, world, workerID, 1 };
-			pathFinder.run(map, mainArea, locationSolution, searchMethod, numOfSearchLocations);
+			PPC_LOG(info) << "No need for path finding.";
+		}
+
+		const bool isLastWorker = (numOfPathfindingWorkers > 1 && world.rank() == world.size() - 1)
+			|| (numOfPathfindingWorkers == 1 && world.rank() == 0);
+		if (!statistics && isLastWorker)
+		{
+			world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
 		}
 	}
-	else if (world.rank() == 0)
-	{
-		PPC_LOG(info) << "No need for path finding.";
-	}
 
-	const bool isLastWorker = (numOfPathfindingWorkers > 1 && world.rank() == world.size() - 1) 
-		|| (numOfPathfindingWorkers == 1 && world.rank() == 0);
-	if (!statistics && isLastWorker)
-	{
-		world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
-	}
-
-	if (statistics)
+	if (statistics && world.rank() != 1)
 	{
 		workersComm.barrier();
 
@@ -230,6 +233,11 @@ int main(int argc, char *argv[])
 			stats->totalNumberOfQueries += additionalNumOfQueries;
 
 			world.send(1, ppc::tags::STOP, ppc::dummy<ppc::Direction>);
+			if (!pathFiding)
+			{
+				world.send(1, 0, locationSolution);
+			}
+			PPC_LOG(info) << "Stop signal sent to orientee";
 
 			//Path finding stats
 			stats->pathFinding = pathFiding;

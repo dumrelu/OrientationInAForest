@@ -137,6 +137,7 @@ namespace ppc
 
 			PPC_LOG(trace) << "Middle = " << map[position.second][position.first];
 		} while (!(tag & tags::STOP));
+		PPC_LOG(info) << "Stopping";
 
 		return p;
 	}
